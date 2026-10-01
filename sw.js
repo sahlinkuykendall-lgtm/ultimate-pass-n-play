@@ -1,7 +1,7 @@
 // Offline support. Network first so new versions show up right away,
 // falling back to the cache when there's no connection.
 // Bump CACHE when the SHELL list changes.
-const CACHE = 'pnp-v6';
+const CACHE = 'pnp-v7';
 const SHELL = [
   './',
   './index.html',
@@ -52,7 +52,8 @@ self.addEventListener('fetch', (event) => {
     (async () => {
       const cache = await caches.open(CACHE);
       try {
-        const response = await fetch(request);
+        // no-cache: always revalidate with the server so updates never hide behind the HTTP cache
+        const response = await fetch(request.url, { cache: 'no-cache', credentials: 'same-origin' });
         if (response.ok) cache.put(request, response.clone());
         return response;
       } catch {

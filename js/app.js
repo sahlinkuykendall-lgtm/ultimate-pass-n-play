@@ -4,6 +4,8 @@ import { sfx, haptic, unlockAudio } from './fx.js';
 import { icon, logoMark } from './icons.js';
 import { openSheet, sheetIsOpen, toast, confirm, passTo, confetti, escapeHtml } from './ui.js';
 
+export const APP_VERSION = '0.5.0';
+
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 
@@ -404,11 +406,16 @@ function openSettings() {
           <span class="row-label">Replay intro</span>
           ${icon('chevronRight', 'row-chev')}
         </button>
+        <button class="row" data-row="update">
+          <span class="row-icon" style="--rc:#10b981">${icon('download')}</span>
+          <span class="row-label">Force update<small>Download the latest version now</small></span>
+          ${icon('chevronRight', 'row-chev')}
+        </button>
       </div>
       <div class="about">
         ${logoMark('about-logo')}
         <strong>Ultimate Pass &amp; Play</strong>
-        <small>Version 0.1.0</small>
+        <small>Version ${APP_VERSION}</small>
       </div>`,
   });
 
@@ -425,6 +432,31 @@ function openSettings() {
     close();
     setTimeout(startSplash, 300);
   });
+  $('[data-row="update"]', el).addEventListener('click', () => {
+    close();
+    forceUpdate();
+  });
+}
+
+/* ----------------------------------------------------------------- Updates */
+
+// Wipes the offline cache and service worker, then reloads straight from the network.
+async function forceUpdate() {
+  toast('Updating to the latest version…', { icon: 'download', duration: 4000 });
+  try {
+    const regs = (await navigator.serviceWorker?.getRegistrations()) ?? [];
+    await Promise.all(regs.map((r) => r.unregister()));
+    const keys = (await globalThis.caches?.keys()) ?? [];
+    await Promise.all(keys.map((k) => caches.delete(k)));
+  } catch {}
+  setTimeout(() => location.replace(`${location.pathname}?v=${Date.now()}`), 600);
+}
+
+let reloadPending = false;
+function onUpdateReady() {
+  // Never yank someone out of a game; reload as soon as they're back in the library.
+  if (state.screen === 'game') reloadPending = true;
+  else location.reload();
 }
 
 /* --------------------------------------------------------------- Game host */
@@ -453,6 +485,7 @@ async function launchGame(game) {
   const exit = () => {
     teardown?.();
     teardown = null;
+    if (reloadPending) return location.reload();
     show('home');
     setTimeout(() => (screens.game.innerHTML = ''), 500);
   };
@@ -523,7 +556,24 @@ if (new URLSearchParams(location.search).has('skip')) {
   startSplash();
 }
 
+// Clean the cache-busting param left by "Force update".
+if (new URLSearchParams(location.search).has('v')) history.replaceState(null, '', location.pathname);
+
 const isLocal = ['localhost', '127.0.0.1'].includes(location.hostname);
 if ('serviceWorker' in navigator && !isLocal) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;
+    reloading = true;
+    onUpdateReady();
+  });
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' });
+      // iOS resumes home-screen apps instead of relaunching them, so check whenever we come back.
+      document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && reg.update().catch(() => {}));
+      reg.update().catch(() => {});
+    } catch {}
+  });
 }
