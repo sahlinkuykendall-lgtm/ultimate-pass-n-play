@@ -16,6 +16,7 @@ function load() {
     players: Array.isArray(saved.players) ? saved.players : [],
     settings: { sound: true, ...saved.settings },
     flags: { ...saved.flags },
+    games: { ...saved.games },
   };
 }
 
@@ -72,6 +73,14 @@ export const store = {
   },
   setFlag(key, value = true) {
     data.flags[key] = value;
+    save();
+  },
+
+  gameData(id) {
+    return data.games[id] ?? null;
+  },
+  setGameData(id, value) {
+    data.games[id] = value;
     save();
   },
 

@@ -34,17 +34,23 @@ in Safari on the same Wi-Fi.
 2. Open `https://<username>.github.io/ultimate-pass-n-play/` in Safari.
 3. Tap **Share → Add to Home Screen**. It launches full-screen like a native app.
 
+## Games
+
+- **Tic-Tac-Toe**: Classic, Vanishing, Ultimate, Misère and Gobble modes, boards from 3×3 to 7×7,
+  adjustable line length, emoji mark themes, best-of series, turn timer, undo and a face-to-face table mode.
+
 ## Adding a game
 
-1. Create `js/games/<id>.js`:
+1. Create `js/games/<id>.js` (or a folder, `js/games/<id>/index.js`, like Tic-Tac-Toe):
 
    ```js
    export default {
-     mount(stage, ctx) {
+     async mount(stage, ctx) {
        // stage: the element to render into
-       // ctx.players: [{ id, name, color }] (capped to the game's max)
+       // ctx.players: the saved roster [{ id, name, color }], pick who plays inside the game
+       // ctx.storage.get() / .set(value): remember this game's settings between sessions
        // ctx.passTo(player): shows the handoff screen, resolves when they're ready
-       // ctx.toast(msg), ctx.confirm({...}), ctx.sfx.*, ctx.haptic(), ctx.exit()
+       // ctx.toast(msg), ctx.confirm({...}), ctx.confetti({ colors }), ctx.sfx.*, ctx.haptic(), ctx.exit()
        stage.innerHTML = `<h1>Hello ${ctx.players[0]?.name}</h1>`;
        return () => {}; // optional cleanup
      },
@@ -53,7 +59,7 @@ in Safari on the same Wi-Fi.
 
 2. In `js/games.js`, add `load: () => import('./games/<id>.js')` to that game's entry.
    It flips from "Coming soon" to playable automatically.
-3. Add the new file to the `SHELL` list in `sw.js` and bump `CACHE` so installed copies update.
+3. Add the new files to the `SHELL` list in `sw.js` and bump `CACHE` so they work offline.
 
 ## Project layout
 
@@ -62,6 +68,7 @@ index.html              app shell + intro markup
 css/app.css             all styles
 js/app.js               screens: intro, library, detail, players, settings, game host
 js/games.js             the game catalog (edit this to add/rename games)
+js/games/tic-tac-toe/   rules engine, UI and styles for Tic-Tac-Toe
 js/ui.js                sheets, toasts, confirm, pass-the-phone handoff
 js/store.js             saved players + settings (localStorage)
 js/fx.js                synthesized UI sounds + haptics

@@ -1,6 +1,7 @@
-// Offline support: serve cached files instantly, refresh them in the background.
-// Bump CACHE whenever you want installed copies to drop old files.
-const CACHE = 'pnp-v1';
+// Offline support. Network first so new versions show up right away,
+// falling back to the cache when there's no connection.
+// Bump CACHE when the SHELL list changes.
+const CACHE = 'pnp-v2';
 const SHELL = [
   './',
   './index.html',
@@ -12,6 +13,9 @@ const SHELL = [
   './js/fx.js',
   './js/icons.js',
   './js/ui.js',
+  './js/games/tic-tac-toe/index.js',
+  './js/games/tic-tac-toe/engine.js',
+  './js/games/tic-tac-toe/style.css',
   './icons/icon.svg',
   './icons/apple-touch-icon.png',
   './icons/icon-192.png',
@@ -35,15 +39,15 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET' || new URL(request.url).origin !== location.origin) return;
 
   event.respondWith(
-    caches.open(CACHE).then(async (cache) => {
-      const cached = await cache.match(request, { ignoreSearch: request.mode === 'navigate' });
-      const network = fetch(request)
-        .then((response) => {
-          if (response.ok) cache.put(request, response.clone());
-          return response;
-        })
-        .catch(() => cached);
-      return cached || network;
-    }),
+    (async () => {
+      const cache = await caches.open(CACHE);
+      try {
+        const response = await fetch(request);
+        if (response.ok) cache.put(request, response.clone());
+        return response;
+      } catch {
+        return (await cache.match(request, { ignoreSearch: true })) || Response.error();
+      }
+    })(),
   );
 });

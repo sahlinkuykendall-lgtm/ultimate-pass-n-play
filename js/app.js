@@ -2,7 +2,7 @@ import { GAMES, CATEGORIES, isReady, formatPlayers } from './games.js';
 import { store, MAX_PLAYERS } from './store.js';
 import { sfx, haptic, unlockAudio } from './fx.js';
 import { icon, logoMark } from './icons.js';
-import { openSheet, sheetIsOpen, toast, confirm, passTo, escapeHtml } from './ui.js';
+import { openSheet, sheetIsOpen, toast, confirm, passTo, confetti, escapeHtml } from './ui.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -189,7 +189,8 @@ function wireHome() {
       haptic();
       state.category = target.dataset.category;
       $$('.chip', home).forEach((c) => c.classList.toggle('on', c === target));
-      target.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      const row = target.parentElement;
+      row.scrollTo({ left: target.offsetLeft - (row.clientWidth - target.offsetWidth) / 2, behavior: 'smooth' });
       renderGrid();
     } else if (target.dataset.action === 'players') {
       openPlayers();
@@ -249,7 +250,7 @@ function openGameDetail(game) {
 
   const note =
     have && have > max
-      ? `<p class="detail-note">Only ${max} of your ${have} players can join this one.</p>`
+      ? `<p class="detail-note">You’ll pick ${max} of your ${have} players to play.</p>`
       : '';
 
   const { el, close } = openSheet({
@@ -472,15 +473,17 @@ async function launchGame(game) {
   sfx.start();
   const ctx = {
     game,
-    players: store.players.slice(0, game.players[1]),
+    players: [...store.players],
+    storage: { get: () => store.gameData(game.id), set: (value) => store.setGameData(game.id, value) },
     passTo,
     toast,
     confirm,
+    confetti,
     sfx,
     haptic,
     exit,
   };
-  const cleanup = mod.mount($('.game-stage', screens.game), ctx);
+  const cleanup = await mod.mount($('.game-stage', screens.game), ctx);
   teardown = typeof cleanup === 'function' ? cleanup : null;
 }
 

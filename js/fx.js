@@ -30,6 +30,16 @@ function tone({ freq, to, dur = 0.08, type = 'sine', gain = 0.05, delay = 0 }) {
 }
 
 export const sfx = {
+  tone,
+  win: () => {
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone({ freq: f, dur: 0.4, type: 'triangle', gain: 0.045, delay: i * 0.09 }));
+    tone({ freq: 2093, dur: 0.6, type: 'sine', gain: 0.015, delay: 0.4 });
+  },
+  draw: () => {
+    tone({ freq: 440, dur: 0.25, type: 'triangle', gain: 0.04 });
+    tone({ freq: 392, dur: 0.4, type: 'triangle', gain: 0.04, delay: 0.18 });
+  },
+  tick: () => tone({ freq: 1400, dur: 0.03, type: 'square', gain: 0.012 }),
   tap: () => tone({ freq: 900, to: 620, dur: 0.05, gain: 0.03 }),
   select: () => {
     tone({ freq: 660, dur: 0.09, gain: 0.035 });

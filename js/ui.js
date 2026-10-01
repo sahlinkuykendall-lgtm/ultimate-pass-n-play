@@ -149,3 +149,55 @@ export function passTo(player, { message = 'Pass the phone to', hint = 'No peeki
     });
   });
 }
+
+// Canvas confetti burst. Cheap enough for phones; removes itself when done.
+export function confetti({ colors = ['#8b5cf6', '#ec4899', '#f59e0b', '#ffffff'], count = 150 } = {}) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const canvas = document.createElement('canvas');
+  canvas.className = 'confetti';
+  root().append(canvas);
+  const W = innerWidth;
+  const H = innerHeight;
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  const g = canvas.getContext('2d');
+  g.scale(dpr, dpr);
+
+  const parts = Array.from({ length: count }, (_, i) => ({
+    x: W / 2 + (Math.random() - 0.5) * W * 0.4,
+    y: H * 0.42,
+    vx: (Math.random() - 0.5) * 16,
+    vy: -Math.random() * 15 - 7,
+    w: 6 + Math.random() * 6,
+    h: 9 + Math.random() * 8,
+    rot: Math.random() * Math.PI * 2,
+    vr: (Math.random() - 0.5) * 0.35,
+    color: colors[i % colors.length],
+  }));
+
+  const t0 = performance.now();
+  const frame = (now) => {
+    const t = now - t0;
+    g.clearRect(0, 0, W, H);
+    g.globalAlpha = t > 2200 ? Math.max(0, 1 - (t - 2200) / 800) : 1;
+    for (const p of parts) {
+      p.vy += 0.38;
+      p.vx *= 0.985;
+      p.vy *= 0.985;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rot += p.vr;
+      g.save();
+      g.translate(p.x, p.y);
+      g.rotate(p.rot);
+      g.scale(1, Math.cos(p.rot * 2));
+      g.fillStyle = p.color;
+      g.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      g.restore();
+    }
+    if (t < 3000) requestAnimationFrame(frame);
+    else canvas.remove();
+  };
+  requestAnimationFrame(frame);
+}

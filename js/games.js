@@ -3,11 +3,13 @@
 // To make a game playable:
 //   1. Create js/games/<id>.js with a default export:
 //        export default {
-//          mount(stage, ctx) {   // stage = HTMLElement to render into
-//            ...                  // ctx   = { game, players, passTo, toast, confirm, sfx, haptic, exit }
+//          mount(stage, ctx) {   // stage = HTMLElement to render into (may be async)
+//            ...                  // ctx = { game, players (full roster), storage, passTo, toast,
+//                                 //         confirm, confetti, sfx, haptic, exit }
 //            return () => {};     // optional cleanup, called when the game closes
 //          },
 //        };
+//      Bigger games can live in a folder: js/games/<id>/index.js
 //   2. Add `load: () => import('./games/<id>.js')` to its entry below.
 // Entries without `load` show up as "Coming soon".
 
@@ -35,14 +37,15 @@ export const GAMES = [
   {
     id: 'tic-tac-toe',
     name: 'Tic-Tac-Toe',
-    tagline: 'The classic, perfected.',
-    description: 'Three in a row wins. Play a best-of series with running scores and a proper winner’s moment.',
+    tagline: 'The classic, reinvented.',
+    description: 'Five ways to play: Classic, Vanishing, Ultimate, Misère and Gobble. Boards up to 7×7, custom marks, turn timers and best-of series.',
     players: [2, 2],
     time: '2 min',
     categories: ['strategy', 'quick'],
     colors: ['#3b82f6', '#06b6d4'],
     icon: 'grid',
     featured: true,
+    load: () => import('./games/tic-tac-toe/index.js'),
   },
   {
     id: 'truth-or-dare',
