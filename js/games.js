@@ -23,6 +23,19 @@ export const CATEGORIES = [
 
 export const GAMES = [
   {
+    id: 'mini-golf',
+    name: 'Mini Golf',
+    tagline: 'Nine holes. Zero chill.',
+    description: 'Drag back, aim and putt through windmills, portals, water and bumpers. Six ways to play: Classic, Ice Rink, Pinball, Bumper Balls, Wild Card and Closest to Pin.',
+    players: [2, 4],
+    time: '10–20 min',
+    categories: ['party', 'quick'],
+    colors: ['#22c55e', '#0ea5e9'],
+    icon: 'flag',
+    featured: true,
+    load: () => import('./games/mini-golf/index.js'),
+  },
+  {
     id: 'tic-tac-toe',
     name: 'Tic-Tac-Toe',
     tagline: 'The classic, reinvented.',
@@ -58,7 +71,6 @@ export const GAMES = [
     categories: ['party'],
     colors: ['#7c3aed', '#db2777'],
     icon: 'mask',
-    featured: true,
   },
   {
     id: 'truth-or-dare',

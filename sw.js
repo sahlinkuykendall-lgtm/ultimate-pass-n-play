@@ -1,7 +1,7 @@
 // Offline support. Network first so new versions show up right away,
 // falling back to the cache when there's no connection.
 // Bump CACHE when the SHELL list changes.
-const CACHE = 'pnp-v4';
+const CACHE = 'pnp-v6';
 const SHELL = [
   './',
   './index.html',
@@ -14,12 +14,18 @@ const SHELL = [
   './js/fx.js',
   './js/icons.js',
   './js/ui.js',
+  './js/games/kit.js',
   './js/games/tic-tac-toe/index.js',
   './js/games/tic-tac-toe/engine.js',
   './js/games/tic-tac-toe/style.css',
   './js/games/dots-and-boxes/index.js',
   './js/games/dots-and-boxes/engine.js',
   './js/games/dots-and-boxes/style.css',
+  './js/games/mini-golf/index.js',
+  './js/games/mini-golf/engine.js',
+  './js/games/mini-golf/course.js',
+  './js/games/mini-golf/render.js',
+  './js/games/mini-golf/style.css',
   './icons/icon.svg',
   './icons/apple-touch-icon.png',
   './icons/icon-192.png',

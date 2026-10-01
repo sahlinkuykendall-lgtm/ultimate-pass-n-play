@@ -1,6 +1,7 @@
 import { newRound, play, isPlayable, legalMoves, edgeInfo, edgeId, boxesOf, standings } from './engine.js';
 import { icon } from '../../icons.js';
 import { escapeHtml } from '../../ui.js';
+import { playersSection, toggleSeat, shuffle, loadStyles } from '../kit.js';
 
 const GUESTS = [
   { id: 'guest-1', name: 'Player 1', color: '#8b5cf6' },
@@ -63,7 +64,6 @@ const PAD = 28;
 const svgIcon = (paths) =>
   `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 const initial = (p) => escapeHtml(p.name.trim()[0]?.toUpperCase() ?? '?');
-const ordinal = (n) => ['1st', '2nd', '3rd', '4th'][n];
 const fmt = (v) => (v < 0 ? `−${-v}` : `+${v}`);
 
 class DotsAndBoxes {
@@ -108,38 +108,7 @@ class DotsAndBoxes {
     this.root.innerHTML = `
       <div class="kit-setup">
         <div class="kit-setup-scroll">
-          <section class="kit-sec">
-            <h3 class="kit-h">Players <span class="dab-count">${this.seats.length} of ${MAX_SEATS}</span></h3>
-            <div class="dab-order" style="--n:${this.seats.length}">
-              ${this.seats
-                .map(
-                  (p, i) => `
-                <div class="dab-seat" style="--pc:${p.color}">
-                  <span class="avatar" style="--pc:${p.color}">${initial(p)}</span>
-                  <strong>${escapeHtml(p.name)}</strong>
-                  <small>${ordinal(i)}</small>
-                </div>`,
-                )
-                .join('')}
-            </div>
-            <div class="dab-order-actions">
-              <button class="kit-ctrl" data-act="shuffle">${icon('swap')}<span>Shuffle order</span></button>
-            </div>
-            ${
-              this.roster.length > 2
-                ? `<p class="kit-hint">Tap to add or remove players. 2 to ${MAX_SEATS} can play.</p>
-                   <div class="kit-people">${this.roster
-                     .map((p) => {
-                       const seat = this.seats.indexOf(p);
-                       return `<button class="kit-person ${seat >= 0 ? 'on' : ''}" data-act="toggle" data-v="${p.id}" style="--pc:${p.color}">
-                         <span class="avatar" style="--pc:${p.color}">${initial(p)}</span>${escapeHtml(p.name)}
-                         ${seat >= 0 ? `<span class="dab-badge">${seat + 1}</span>` : ''}
-                       </button>`;
-                     })
-                     .join('')}</div>`
-                : '<p class="kit-hint">Add more players on the home screen to play with up to 4.</p>'
-            }
-          </section>
+          ${playersSection({ roster: this.roster, seats: this.seats, max: MAX_SEATS })}
 
           <section class="kit-sec">
             <h3 class="kit-h">Mode</h3>
@@ -616,26 +585,11 @@ class DotsAndBoxes {
     };
 
     switch (act) {
-      case 'toggle': {
-        const p = this.roster.find((x) => x.id === v);
-        const at = this.seats.indexOf(p);
-        if (at >= 0 && this.seats.length <= 2) {
-          this.ctx.sfx.deny();
-          return this.ctx.toast('You need at least 2 players.', { icon: 'users', duration: 1800 });
-        }
-        if (at < 0 && this.seats.length >= MAX_SEATS) {
-          this.ctx.sfx.deny();
-          return this.ctx.toast(`Up to ${MAX_SEATS} players.`, { icon: 'users', duration: 1800 });
-        }
-        return setup(() => (at >= 0 ? this.seats.splice(at, 1) : this.seats.push(p)));
-      }
+      case 'toggle':
+        if (toggleSeat(this.ctx, { roster: this.roster, seats: this.seats, id: v, max: MAX_SEATS })) setup(() => {});
+        return;
       case 'shuffle':
-        return setup(() => {
-          for (let i = this.seats.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [this.seats[i], this.seats[j]] = [this.seats[j], this.seats[i]];
-          }
-        });
+        return setup(() => shuffle(this.seats));
       case 'mode':
         return setup(() => (c.mode = v));
       case 'size':
@@ -680,13 +634,7 @@ class DotsAndBoxes {
 
 export default {
   async mount(stage, ctx) {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = new URL('./style.css', import.meta.url).href;
-    await new Promise((resolve) => {
-      link.onload = link.onerror = resolve;
-      document.head.append(link);
-    });
+    const link = await loadStyles(new URL('./style.css', import.meta.url).href);
     const game = new DotsAndBoxes(stage, ctx);
     game.showSetup();
     return () => {

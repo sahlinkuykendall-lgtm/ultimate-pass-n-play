@@ -4,37 +4,6 @@
 
 /* -------------------------------------------------------------- Setup */
 
-.dab-count { font-size: 12px; font-weight: 600; letter-spacing: 0.02em; text-transform: none; color: var(--text-3); }
-.dab-order { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 8px; }
-.dab-seat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  padding: 14px 6px 12px;
-  border-radius: 20px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--pc) 20%, transparent), rgba(255, 255, 255, 0.03));
-  border: 1px solid color-mix(in srgb, var(--pc) 35%, transparent);
-  animation: dab-seat-in 0.45s var(--spring) backwards;
-}
-@keyframes dab-seat-in { from { opacity: 0; transform: scale(0.9); } }
-.dab-seat .avatar { width: 46px; height: 46px; font-size: 19px; box-shadow: 0 10px 24px -10px var(--pc); }
-.dab-seat strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
-.dab-seat small { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); }
-.dab-order-actions { display: flex; justify-content: center; margin-top: 12px; }
-.dab-badge {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  margin-left: 2px;
-  border-radius: 50%;
-  font-size: 11px;
-  font-weight: 800;
-  color: #fff;
-  background: var(--pc);
-}
 .dab-preview { display: grid; grid-template-columns: repeat(var(--c), 1fr); gap: 3px; width: 44px; }
 .dab-preview i { justify-self: center; width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, 0.55); }
 
