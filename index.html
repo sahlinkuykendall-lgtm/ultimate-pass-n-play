@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Pass &amp; Play</title>
+  <meta name="description" content="The ultimate collection of pass-and-play games. One phone, every game, all your friends.">
+  <meta name="theme-color" content="#07070c">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Pass &amp; Play">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="css/app.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <div id="app" data-screen="splash">
+    <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="grain" aria-hidden="true"></div>
+
+    <!-- Opening / splash -->
+    <section id="splash" class="screen splash is-active" aria-label="Welcome">
+      <div class="splash-center">
+        <div class="mark" aria-hidden="true">
+          <div class="mark-glow"></div>
+          <div class="mark-card back"></div>
+          <div class="mark-card front">
+            <svg viewBox="0 0 24 24"><path d="M8 5.2v13.6a1 1 0 0 0 1.52.85l10.4-6.8a1 1 0 0 0 0-1.7L9.52 4.35A1 1 0 0 0 8 5.2z" fill="currentColor"/></svg>
+          </div>
+        </div>
+        <div class="splash-title">
+          <span class="kicker">Ultimate</span>
+          <h1><span class="w1">Pass</span> <span class="amp">&amp;</span> <span class="w2">Play</span></h1>
+          <p class="tagline">One phone. Every game. All your friends.</p>
+        </div>
+      </div>
+      <button class="begin" type="button">
+        <span>Tap to begin</span>
+      </button>
+    </section>
+
+    <!-- Game library (rendered by js/app.js) -->
+    <section id="home" class="screen home" aria-label="Game library"></section>
+
+    <!-- Game host (games mount here) -->
+    <section id="game" class="screen game-screen" aria-label="Game"></section>
+  </div>
+  <div id="overlay-root"></div>
+</body>
+</html>
