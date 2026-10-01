@@ -1,7 +1,7 @@
 // Offline support. Network first so new versions show up right away,
 // falling back to the cache when there's no connection.
 // Bump CACHE when the SHELL list changes.
-const CACHE = 'pnp-v9';
+const CACHE = 'pnp-v10';
 const SHELL = [
   './',
   './index.html',

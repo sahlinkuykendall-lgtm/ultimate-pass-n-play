@@ -8,7 +8,7 @@
 //             walls?, blocks?, bumpers?, spinners?, sand?, water?, ice?, slopes?, boosts?, portals? }
 
 export const FIELD = { w: 100, h: 160 }; // legacy default bounds
-export const GRAVITY = 150; // slope force per unit of terrain gradient
+export const GRAVITY = 260; // slope force per unit of terrain gradient
 export const BALL_R = 2.2;
 export const CUP_R = 3.6;
 export const MAX_SPEED = 170;
@@ -23,7 +23,7 @@ const SURFACE = {
 export const MODE_PHYSICS = {
   classic: {},
   ice: { greenDecel: 6, greenDrag: 0.1, sandDecel: 45 },
-  pinball: { wallE: 0.98, bumperE: 1.75, greenDecel: 18, kick: 60 },
+  pinball: { wallE: 0.98, bumperE: 2.1, greenDecel: 18, kick: 140 },
   bumper: { collide: true },
   wild: {},
   pin: {},
@@ -68,6 +68,46 @@ const rectSegs = ([x, y, w, h]) => [
   [x, y + h, x, y],
 ];
 const polySegs = (pts) => pts.map((p, i) => [...p, ...pts[(i + 1) % pts.length]]);
+const openSegs = (pts, closed) => (closed ? polySegs(pts) : pts.slice(1).map((p, i) => [...pts[i], ...p]));
+
+// Where fairways overlap (forks, junctions) their rails would block each other, so
+// any edge of one outline that lies inside another is dropped. Returns the walls
+// that remain as runs: { points, closed }.
+function railRuns(outlines) {
+  const runs = [];
+  outlines.forEach((o, k) => {
+    // Which side is inside (renderers need it for open runs)
+    let area = 0;
+    o.forEach((p, i) => {
+      const q = o[(i + 1) % o.length];
+      area += p[0] * q[1] - q[0] * p[1];
+    });
+    const inward = area > 0 ? 1 : -1;
+    const others = outlines.filter((_, j) => j !== k);
+    const keep = o.map((p, i) => {
+      const q = o[(i + 1) % o.length];
+      return !others.some((poly) => pointIn({ poly }, (p[0] + q[0]) / 2, (p[1] + q[1]) / 2));
+    });
+    const first = keep.indexOf(false);
+    if (first < 0) {
+      runs.push({ points: o, closed: true, inward });
+      return;
+    }
+    let run = null;
+    for (let n = 1; n <= o.length; n++) {
+      const i = (first + n) % o.length;
+      if (keep[i]) {
+        run ??= [o[i]];
+        run.push(o[(i + 1) % o.length]);
+      } else if (run) {
+        runs.push({ points: run, closed: false, inward });
+        run = null;
+      }
+    }
+    if (run) runs.push({ points: run, closed: false, inward });
+  });
+  return runs;
+}
 
 function closestOnSeg(px, py, x1, y1, x2, y2) {
   const dx = x2 - x1;
@@ -158,6 +198,33 @@ export function fairwayOutline(f) {
   return [...left, ...cap(end, left[left.length - 1], -Math.PI), ...right.reverse(), ...cap(start, right[right.length - 1] ?? right[0], -Math.PI)];
 }
 
+// Height of the centerline point nearest to (x, y). Searches rings of buckets
+// outward; one extra ring past the first hit catches closer points across a border.
+const BUCKET = 8;
+function nearestHeight(buckets, fi, fj, x, y) {
+  const bi = Math.floor(fi);
+  const bj = Math.floor(fj);
+  let best = Infinity;
+  let h = 0;
+  let stop = 200;
+  for (let ring = 0; ring <= stop; ring++) {
+    for (let dj = -ring; dj <= ring; dj++) {
+      const step = Math.abs(dj) === ring ? 1 : ring * 2 || 1;
+      for (let di = -ring; di <= ring; di += step) {
+        for (const q of buckets.get((bj + dj) * 4096 + bi + di) ?? []) {
+          const d = (q.x - x) ** 2 + (q.y - y) ** 2;
+          if (d < best) {
+            best = d;
+            h = q.h;
+          }
+        }
+      }
+    }
+    if (best < Infinity && stop === 200) stop = ring + 1;
+  }
+  return h;
+}
+
 // Memoized per hole: outlines, dense centerlines and the terrain height grid.
 const PREP = new WeakMap();
 function prepare(hole) {
@@ -181,22 +248,21 @@ function prepare(hole) {
   const grid = new Float32Array(gx * gy);
   const hills = hole.hills ?? [];
   const hasPathHeight = paths.some((p) => p.some((q) => q.h));
+  const buckets = new Map();
+  for (const path of paths) {
+    for (const q of path) {
+      const key = Math.floor((q.y - bounds.y) / BUCKET) * 4096 + Math.floor((q.x - bounds.x) / BUCKET);
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push(q);
+    }
+  }
   for (let j = 0; j < gy; j++) {
     for (let i = 0; i < gx; i++) {
       const x = bounds.x + i;
       const y = bounds.y + j;
       let h = 0;
       if (hasPathHeight) {
-        let best = Infinity;
-        for (const path of paths) {
-          for (const q of path) {
-            const d = (q.x - x) ** 2 + (q.y - y) ** 2;
-            if (d < best) {
-              best = d;
-              h = q.h;
-            }
-          }
-        }
+        h = nearestHeight(buckets, (x - bounds.x) / BUCKET, (y - bounds.y) / BUCKET, x, y);
       }
       for (const hl of hills) {
         const s = hl.r / 2.4;
@@ -205,7 +271,7 @@ function prepare(hole) {
       grid[j * gx + i] = h;
     }
   }
-  const prep = { paths, outlines, bounds, tee, cup, terrain: { grid, gx, gy, x0: bounds.x, y0: bounds.y } };
+  const prep = { paths, outlines, rails: railRuns(outlines), bounds, tee, cup, terrain: { grid, gx, gy, x0: bounds.x, y0: bounds.y } };
   PREP.set(hole, prep);
   return prep;
 }
@@ -236,7 +302,7 @@ export function slopeAt(w, x, y) {
 export function buildWorld(hole, { mode = 'classic', twist = null, seed = 1 } = {}) {
   const phys = { ...MODE_PHYSICS[mode] };
   const prep = prepare(hole);
-  const segments = [...prep.outlines.flatMap(polySegs), ...(hole.walls ?? []).map(([a, b]) => [...a, ...b])];
+  const segments = [...prep.rails.flatMap((r) => openSegs(r.points, r.closed)), ...(hole.walls ?? []).map(([a, b]) => [...a, ...b])];
   for (const b of hole.blocks ?? []) segments.push(...(b.rect ? rectSegs(b.rect) : polySegs(b.poly)));
   const segGrid = buildSegGrid(segments, prep.bounds);
   const hilly = (hole.hills?.length ?? 0) > 0 || prep.paths.some((p) => p.some((q) => q.h));
@@ -248,7 +314,7 @@ export function buildWorld(hole, { mode = 'classic', twist = null, seed = 1 } = 
   if (twist === 'giant') cupR *= 2.1;
   if (twist === 'moving') cupAmp = 12;
   if (twist === 'ice') Object.assign(phys, MODE_PHYSICS.ice);
-  if (twist === 'bouncy') Object.assign(phys, { wallE: 1.02, bumperE: 1.6 });
+  if (twist === 'bouncy') Object.assign(phys, { wallE: 1.02, bumperE: 1.9, kick: 115 });
   if (twist === 'wind') {
     const a = ((seed * 9301 + 49297) % 233280) / 233280 * Math.PI * 2;
     wind = [Math.cos(a) * 16, Math.sin(a) * 16];
@@ -259,6 +325,7 @@ export function buildWorld(hole, { mode = 'classic', twist = null, seed = 1 } = 
     segments,
     segGrid,
     outlines: prep.outlines,
+    rails: prep.rails,
     paths: prep.paths,
     bounds: prep.bounds,
     terrain: prep.terrain,
@@ -279,8 +346,8 @@ export function buildWorld(hole, { mode = 'classic', twist = null, seed = 1 } = 
     mirror: twist === 'mirror',
     collide: !!phys.collide,
     wallE: phys.wallE ?? 0.72,
-    bumperE: phys.bumperE ?? 1.25,
-    kick: phys.kick ?? 32,
+    bumperE: phys.bumperE ?? 1.7,
+    kick: phys.kick ?? 95,
     green: { decel: phys.greenDecel ?? SURFACE.green.decel, drag: phys.greenDrag ?? SURFACE.green.drag },
     sandF: { decel: phys.sandDecel ?? SURFACE.sand.decel, drag: SURFACE.sand.drag },
     t: 0,
@@ -327,7 +394,7 @@ export function newBall(seat) {
 }
 
 export function placeAtTee(w, ball) {
-  Object.assign(ball, { x: w.tee[0], y: w.tee[1], vx: 0, vy: 0, active: true, sunk: false, lock: null });
+  Object.assign(ball, { x: w.tee[0], y: w.tee[1], vx: 0, vy: 0, active: true, sunk: false, lock: null, settled: false, slowT: 0 });
 }
 
 // dx, dy: unit aim direction; power: 0..1
@@ -390,8 +457,9 @@ function stepBall(w, b, events) {
     Object.assign(b, { x: b.lastX, y: b.lastY, vx: 0, vy: 0 });
   }
   const moving = b.vx !== 0 || b.vy !== 0;
+  if (moving) b.settled = false;
   const [zx, zy] = zoneAccel(w, b.x, b.y);
-  if (!moving && zx === 0 && zy === 0) {
+  if (!moving && (b.settled || (zx === 0 && zy === 0))) {
     restingContacts(w, b, events);
     return;
   }
@@ -418,6 +486,13 @@ function stepBall(w, b, events) {
   if (!Number.isFinite(b.vx) || !Number.isFinite(b.vy)) {
     b.vx = 0;
     b.vy = 0;
+  }
+  // A ball creeping against a wall or wobbling in a dip comes to rest instead of jittering forever.
+  if (speedOf(b) < 4) b.slowT = (b.slowT ?? 0) + DT;
+  else b.slowT = 0;
+  if (b.slowT > 0.6) {
+    Object.assign(b, { vx: 0, vy: 0, slowT: 0, settled: true });
+    return;
   }
   const cap = MAX_SPEED * 1.35;
   const s2 = speedOf(b);

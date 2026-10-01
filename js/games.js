@@ -26,7 +26,7 @@ export const GAMES = [
     id: 'mini-golf',
     name: 'Mini Golf',
     tagline: 'Nine holes. Zero chill.',
-    description: 'Drag back, aim and putt through windmills, portals, water and bumpers. Six ways to play: Classic, Ice Rink, Pinball, Bumper Balls, Wild Card and Closest to Pin.',
+    description: 'Nine long, twisting 3D holes with forks, spirals, switchbacks and real rolling hills. Drag back, aim and putt past windmills, portals, water and bumpers. Six ways to play: Classic, Ice Rink, Pinball, Bumper Balls, Wild Card and Closest to Pin.',
     players: [2, 4],
     time: '10–20 min',
     categories: ['party', 'quick'],

@@ -29,6 +29,30 @@ function canvasTexture(w, h, draw) {
   return tex;
 }
 
+// Which grid cells (by centre) fall inside any fairway outline. Scanline fill per
+// row, so long holes with thousands of outline points stay fast.
+function insideMask(outlines, B, cols, rows) {
+  const mask = new Uint8Array(cols * rows);
+  for (let j = 0; j < rows; j++) {
+    const y = B.y + (j + 0.5) * CELL;
+    for (const o of outlines) {
+      const xs = [];
+      for (let i = 0, k = o.length - 1; i < o.length; k = i++) {
+        const [x1, y1] = o[k];
+        const [x2, y2] = o[i];
+        if (y1 > y !== y2 > y) xs.push(x1 + ((y - y1) * (x2 - x1)) / (y2 - y1));
+      }
+      xs.sort((a, b) => a - b);
+      for (let n = 0; n + 1 < xs.length; n += 2) {
+        const i0 = Math.max(0, Math.ceil((xs[n] - B.x) / CELL - 0.5));
+        const i1 = Math.min(cols - 1, Math.floor((xs[n + 1] - B.x) / CELL - 0.5));
+        for (let i = i0; i <= i1; i++) mask[j * cols + i] = 1;
+      }
+    }
+  }
+  return mask;
+}
+
 export class Course3D {
   constructor(canvas) {
     const r = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -144,7 +168,7 @@ export class Course3D {
     this.h = h;
 
     this.buildTurf(world);
-    for (const o of world.outlines) this.buildRail(o, true, true);
+    for (const r of world.rails) this.buildRail(r.points, r.closed, true, r.inward);
     for (const [a, b] of world.hole.walls ?? []) this.buildRail([a, b], false, false);
     for (const b of world.hole.blocks ?? []) this.buildBlock(b);
     this.buildWater(world);
@@ -173,7 +197,7 @@ export class Course3D {
     const nz = Math.ceil(B.h / CELL) + 1;
     const pos = new Float32Array(nx * nz * 3);
     const col = new Float32Array(nx * nz * 3);
-    const inside = (x, y) => w.outlines.some((o) => pointIn({ poly: o }, x, y));
+    const mask = insideMask(w.outlines, B, nx - 1, nz - 1);
     const green = new THREE.Color(0x22b469);
     const green2 = new THREE.Color(0x1a9d5a);
     const sand = new THREE.Color(0xe9cf94);
@@ -209,9 +233,7 @@ export class Course3D {
     const idx = [];
     for (let j = 0; j < nz - 1; j++) {
       for (let i = 0; i < nx - 1; i++) {
-        const cx = B.x + (i + 0.5) * CELL;
-        const cy = B.y + (j + 0.5) * CELL;
-        if (!inside(cx, cy)) continue;
+        if (!mask[j * (nx - 1) + i]) continue;
         const a = j * nx + i;
         idx.push(a, a + nx, a + 1, a + 1, a + nx, a + nx + 1);
       }
@@ -227,7 +249,7 @@ export class Course3D {
   }
 
   // A rail that follows a polyline over the terrain. Closed outlines also get a rocky skirt below.
-  buildRail(points, closed, skirt) {
+  buildRail(points, closed, skirt, side) {
     const n = points.length;
     let area = 0;
     for (let i = 0; i < n; i++) {
@@ -235,7 +257,7 @@ export class Course3D {
       const [x2, y2] = points[(i + 1) % n];
       area += x1 * y2 - x2 * y1;
     }
-    const inward = area > 0 ? 1 : -1;
+    const inward = side ?? (area > 0 ? 1 : -1);
     const rail = [];
     const sk = [];
     const count = closed ? n + 1 : n;

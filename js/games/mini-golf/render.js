@@ -28,11 +28,27 @@ function roundRect(g, x, y, w, h, r) {
   g.closePath();
 }
 
+// All outlines wound the same way so overlapping fairways fill as one (nonzero rule).
 function outlinePath(g, world) {
   g.beginPath();
   for (const outline of world.outlines) {
-    outline.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+    let area = 0;
+    outline.forEach((p, i) => {
+      const q = outline[(i + 1) % outline.length];
+      area += p[0] * q[1] - q[0] * p[1];
+    });
+    const pts = area < 0 ? [...outline].reverse() : outline;
+    pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
     g.closePath();
+  }
+}
+
+// The walls that remain once overlapping fairways are merged.
+function railPath(g, world) {
+  g.beginPath();
+  for (const r of world.rails) {
+    r.points.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+    if (r.closed) g.closePath();
   }
 }
 
@@ -86,7 +102,7 @@ export function drawStatic(g, world) {
   // Inner shade along the walls
   g.strokeStyle = 'rgba(0, 0, 0, 0.22)';
   g.lineWidth = 7;
-  outlinePath(g, world);
+  railPath(g, world);
   g.stroke();
   g.restore();
 
@@ -140,7 +156,7 @@ export function drawStatic(g, world) {
   g.shadowBlur = 6;
   g.strokeStyle = WALL;
   g.lineWidth = 2.6;
-  outlinePath(g, world);
+  railPath(g, world);
   g.stroke();
   for (const [a, b] of hole.walls ?? []) {
     g.beginPath();

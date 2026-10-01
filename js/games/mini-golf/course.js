@@ -1,14 +1,19 @@
-// The course: nine long, winding holes. Each fairway is a centerline
+// The course: nine long, intricate holes. Each fairway is a centerline
 // ([x, y, height?] points) with a width; features are placed along it with
 // along(path, t, side), where t is 0..1 of the way down the fairway and side
 // pushes left (+) or right (−) of the centerline.
+//
+// Fairways may overlap: where they do, their rails merge, which is how forks
+// and junctions are built. Heights roll the ball: underhit a climb and it comes
+// back down. Negative hills are dips; one around a cup makes a funnel.
 import { along } from './engine.js';
 
 const at = (path, t, side = 0) => along(path, t, side);
 const circle = ([x, y], r) => ({ circle: [x, y, r] });
 const square = ([x, y], s) => ({ rect: [x - s / 2, y - s / 2, s, s] });
 const hill = ([x, y], r, h) => ({ x, y, r, h });
-const bumper = ([x, y], r = 4.5) => ({ x, y, r });
+const bumper = ([x, y], r = 5) => ({ x, y, r });
+const pt = ([x, y]) => ({ x, y });
 const dir = (path, t) => {
   const [x1, y1] = at(path, t - 0.01);
   const [x2, y2] = at(path, t + 0.01);
@@ -20,127 +25,182 @@ const boost = (path, t, size = 18, power = 150) => {
   return { shape: square(at(path, t), size), accel: [dx * power, dy * power] };
 };
 
-/* 1 ─ gentle S, slightly downhill */
-const p1 = [[60, 10, 5], [62, 70, 4], [82, 130, 2], [74, 190, 0], [68, 222, 0]];
+/* 1 ─ First Tee: a long S over rolling mounds into a funnel green */
+const p1 = [[60, 10, 6], [60, 80, 5], [104, 150, 3], [104, 225, 1], [64, 295, 0], [60, 330, 0]];
+const c1 = at(p1, 0.955);
 
-/* 2 ─ sharp dogleg with a banked outer corner */
-const p2 = [[124, 10, 0], [124, 110, 0], [112, 162, 0], [70, 186, 0], [20, 188, 0]];
+/* 2 ─ Switchback: three terraces joined by hairpin ramps */
+const p2 = [[20, 20, 14], [195, 20, 14], [232, 55, 10], [195, 90, 7], [45, 90, 7], [8, 125, 3], [45, 160, 0], [225, 160, 0]];
 
-/* 3 ─ lake along the right, narrow neck to the green */
-const p3 = [[60, 10, 3], [58, 110, 2], [74, 200, 0], [78, 262, 0]];
+/* 3 ─ Fork in the Road: long safe loop left or a narrow ridge right */
+const p3stem = [[100, 10, 4], [100, 95, 3]];
+const p3left = [[100, 85, 3], [48, 140, 2], [34, 225, 1], [58, 305, 0], [100, 345, 0]];
+const p3right = [[100, 85, 3], [140, 145, 3], [134, 225, 2], [118, 300, 0], [100, 345, 0]];
+const p3green = [[100, 335, 0], [100, 410, 0]];
+const c3 = at(p3green, 0.82);
 
-/* 4 ─ windmill guarding an S-bend */
-const p4 = [[70, 10, 0], [58, 80, 0], [72, 150, 0], [72, 210, 0], [84, 262, 0]];
+/* 4 ─ Windmill Valley: down into the valley, past the windmill, up to a plateau */
+const p4 = [[40, 10, 12], [48, 90, 10], [96, 160, 0], [150, 215, 0], [156, 285, 6], [118, 345, 10], [92, 390, 10]];
+const c4 = at(p4, 0.95);
 
-/* 5 ─ climb the volcano: the cup sits on the summit */
-const p5 = [[40, 10, 0], [42, 120, 0], [86, 200, 0], [96, 236, 0]];
+/* 5 ─ Volcano: spiral up the cone and drop into the crater */
+const V = { x: 140, y: 150 };
+const p5 = [];
+for (let k = 0; k <= 16; k++) {
+  const a = Math.PI * 0.5 + (k / 16) * Math.PI * 2 * 1.3;
+  const r = 118 - (k / 16) * 78;
+  p5.push([V.x + Math.cos(a) * r, V.y + Math.sin(a) * r, (k / 16) * 14]);
+}
+const c5 = at(p5, 0.96);
 
-/* 6 ─ winding garden of bumpers */
-const p6 = [[70, 10, 0], [84, 90, 0], [58, 170, 0], [70, 260, 0]];
+/* 6 ─ Pinball Alley: a wide zigzag packed with bumpers */
+const p6 = [[60, 10, 0], [94, 100, 0], [40, 190, 0], [104, 285, 0], [56, 375, 0], [80, 445, 0]];
 
-/* 7 ─ big drop, then a climb to an elevated green */
-const p7 = [[40, 10, 16], [40, 80, 11], [62, 150, 0], [102, 200, 0], [112, 262, 6], [102, 320, 12], [92, 352, 12]];
+/* 7 ─ Rollercoaster: drop, climb, drop again, then up to the green */
+const p7 = [[40, 10, 20], [40, 85, 16], [72, 160, 2], [140, 200, 0], [198, 262, 10], [198, 330, 12], [150, 392, 2], [90, 432, 0], [62, 500, 6], [82, 560, 8], [112, 590, 8]];
 
-/* 8 ─ two islands joined by a portal */
-const p8a = [[34, 10, 0], [34, 112, 0]];
-const p8b = [[130, 150, 0], [112, 220, 0], [118, 290, 0]];
+/* 8 ─ Portal Maze: three islands; the long way round or a gamble */
+const p8a = [[30, 10, 0], [30, 125, 0]];
+const p8b = [[124, 40, 0], [172, 100, 0], [132, 168, 0], [172, 240, 0]];
+const p8c = [[58, 205, 0], [40, 280, 0], [70, 345, 0]];
 
-/* 9 ─ grand finale: long S with every trick */
-const p9 = [[30, 10, 10], [30, 100, 8], [60, 160, 5], [120, 190, 3], [140, 250, 2], [112, 312, 0], [62, 334, 0], [42, 392, 0], [46, 432, 0]];
+/* 9 ─ Grand Finale: boost ramp, a fork, then a climb to the crater green */
+const p9stem = [[40, 10, 16], [40, 100, 12], [80, 152, 8]];
+const p9left = [[80, 142, 8], [36, 220, 6], [36, 300, 4], [90, 362, 2]];
+const p9right = [[80, 142, 8], [150, 200, 6], [162, 290, 4], [90, 362, 2]];
+const p9end = [[90, 352, 2], [100, 432, 0], [172, 482, 0], [202, 560, 6], [162, 632, 10], [112, 662, 10]];
+const c9 = at(p9end, 0.95);
 
 export const HOLES = [
   {
     name: 'First Tee',
     par: 3,
-    fairways: [{ path: p1, width: 30 }],
-    hills: [hill(at(p1, 0.48, -8), 16, 2.5)],
-    sand: [circle(at(p1, 0.86, 9), 6)],
+    fairways: [{ path: p1, width: 32 }],
+    cup: c1,
+    hills: [hill(at(p1, 0.33, 9), 18, 4), hill(at(p1, 0.55, -9), 18, 4), hill(at(p1, 0.72, 8), 16, 3), hill(c1, 24, -2.5)],
+    sand: [circle(at(p1, 0.84, -10), 6)],
   },
   {
-    name: 'Dogleg',
-    par: 3,
-    fairways: [{ path: p2, width: 28 }],
-    hills: [hill(at(p2, 0.52, -16), 18, 5)],
-    bumpers: [bumper(at(p2, 0.55, 9), 4)],
-    sand: [circle(at(p2, 0.84, -8), 6)],
+    name: 'Switchback',
+    par: 4,
+    fairways: [{ path: p2, width: 30 }],
+    tee: at(p2, 0.03),
+    cup: at(p2, 0.96),
+    hills: [hill(at(p2, 0.14, 7), 14, 3), hill(at(p2, 0.5, -7), 14, 3), hill(at(p2, 0.56, 7), 14, 3), hill(at(p2, 0.96), 18, -2)],
+    bumpers: [bumper(at(p2, 0.27, -8)), bumper(at(p2, 0.69, 8))],
+    sand: [circle(at(p2, 0.38, 0), 6)],
+    water: [circle(at(p2, 0.86, 8), 6)],
   },
   {
-    name: 'Lakeside',
-    par: 3,
-    fairways: [{ path: p3, width: 42 }],
-    water: [circle(at(p3, 0.5, -11), 13)],
-    sand: [circle(at(p3, 0.9, 12), 7)],
-    hills: [hill(at(p3, 0.25, 10), 14, 2)],
+    name: 'Fork in the Road',
+    par: 4,
+    fairways: [
+      { path: p3stem, width: 36 },
+      { path: p3left, width: 30 },
+      { path: p3right, width: 18 },
+      { path: p3green, width: 40 },
+    ],
+    tee: at(p3stem, 0.15),
+    cup: c3,
+    hills: [hill(at(p3right, 0.48), 16, 5), hill(at(p3left, 0.45, 8), 18, 3), hill(c3, 26, -2.5)],
+    bumpers: [bumper(at(p3left, 0.25, -7)), bumper(at(p3left, 0.7, 7))],
+    sand: [circle(at(p3left, 0.55, -8), 6), circle(at(p3green, 0.5, 13), 6)],
+    water: [circle(at(p3right, 0.72, 0), 5)],
   },
   {
-    name: 'Windmill',
-    par: 3,
-    fairways: [{ path: p4, width: 30 }],
-    spinners: [{ ...pt(at(p4, 0.6)), len: 27, speed: 1.3 }],
-    hills: [hill(at(p4, 0.3, 8), 12, 2), hill(at(p4, 0.3, -8), 12, 2)],
-    sand: [circle(at(p4, 0.9, -9), 5)],
+    name: 'Windmill Valley',
+    par: 4,
+    fairways: [{ path: p4, width: 32 }],
+    cup: c4,
+    spinners: [{ ...pt(at(p4, 0.45)), len: 28, speed: 1.3 }],
+    hills: [hill(at(p4, 0.22, 9), 16, 4), hill(at(p4, 0.68, -9), 16, 4), hill(c4, 22, -2)],
+    sand: [circle(at(p4, 0.58, 9), 6), circle(at(p4, 0.86, -10), 5)],
+    bumpers: [bumper(at(p4, 0.33, -9))],
   },
   {
     name: 'Volcano',
     par: 4,
-    fairways: [{ path: p5, width: 46 }],
-    cup: at(p5, 0.9),
-    hills: [hill(at(p5, 0.9), 40, 7)],
-    sand: [circle(at(p5, 0.45, 14), 8)],
-    bumpers: [bumper(at(p5, 0.62, -14), 4)],
+    fairways: [{ path: p5, width: 30 }],
+    tee: at(p5, 0.02),
+    cup: c5,
+    hills: [hill(c5, 26, -3.5), hill(at(p5, 0.3, -8), 14, 3), hill(at(p5, 0.6, 8), 14, 3)],
+    sand: [circle(at(p5, 0.45, 0), 6)],
+    bumpers: [bumper(at(p5, 0.75, 8), 4.5)],
   },
   {
-    name: 'Bumper Garden',
-    par: 3,
-    fairways: [{ path: p6, width: 44 }],
+    name: 'Pinball Alley',
+    par: 4,
+    fairways: [{ path: p6, width: 46 }],
+    tee: at(p6, 0.02),
+    cup: at(p6, 0.97),
     bumpers: [
-      bumper(at(p6, 0.3, 10)),
-      bumper(at(p6, 0.3, -10)),
-      bumper(at(p6, 0.45, 0)),
-      bumper(at(p6, 0.6, 12)),
-      bumper(at(p6, 0.6, -12)),
-      bumper(at(p6, 0.75, 0)),
+      bumper(at(p6, 0.12, 12)),
+      bumper(at(p6, 0.18, -10)),
+      bumper(at(p6, 0.27, 6)),
+      bumper(at(p6, 0.36, -14)),
+      bumper(at(p6, 0.42, 10)),
+      bumper(at(p6, 0.5, -4)),
+      bumper(at(p6, 0.58, 14)),
+      bumper(at(p6, 0.65, -12)),
+      bumper(at(p6, 0.72, 4)),
+      bumper(at(p6, 0.8, -10)),
+      bumper(at(p6, 0.86, 12)),
     ],
+    boosts: [boost(p6, 0.31, 14, 120)],
+    hills: [hill(at(p6, 0.97), 22, -2)],
   },
   {
     name: 'Rollercoaster',
-    par: 4,
-    fairways: [{ path: p7, width: 28 }],
-    water: [circle(at(p7, 0.47, -8), 6)],
-    sand: [circle(at(p7, 0.66, 7), 6)],
+    par: 5,
+    fairways: [{ path: p7, width: 30 }],
+    cup: at(p7, 0.97),
+    hills: [hill(at(p7, 0.36, -10), 14, 4), hill(at(p7, 0.46, 10), 16, 4), hill(at(p7, 0.97), 18, -2)],
+    water: [circle(at(p7, 0.3, 8), 6), circle(at(p7, 0.67, -8), 6)],
+    sand: [circle(at(p7, 0.53, -7), 6), circle(at(p7, 0.88, 9), 5)],
+    bumpers: [bumper(at(p7, 0.77, 8))],
   },
   {
-    name: 'Portal Jump',
-    par: 3,
+    name: 'Portal Maze',
+    par: 4,
     fairways: [
       { path: p8a, width: 30 },
       { path: p8b, width: 30 },
+      { path: p8c, width: 34 },
     ],
-    tee: at(p8a, 0.1),
-    cup: at(p8b, 0.92),
-    portals: [{ a: at(p8a, 0.86), b: at(p8b, 0.12), r: 5.5 }],
-    bumpers: [bumper(at(p8b, 0.55, 8), 4)],
+    tee: at(p8a, 0.08),
+    cup: at(p8c, 0.92),
+    portals: [
+      { a: at(p8a, 0.9), b: at(p8b, 0.08), r: 5.5 },
+      { a: at(p8b, 0.94), b: at(p8c, 0.08), r: 5.5 },
+      { a: at(p8a, 0.55, -10), b: at(p8c, 0.22, -6), r: 3.5 },
+    ],
+    bumpers: [bumper(at(p8a, 0.5, -3), 4), bumper(at(p8a, 0.62, -12), 3.5)],
+    hills: [hill(at(p8b, 0.35, 6), 16, 4), hill(at(p8b, 0.68, -6), 16, 4), hill(at(p8c, 0.92), 18, -2)],
+    sand: [circle(at(p8c, 0.7, -9), 5)],
   },
   {
     name: 'Grand Finale',
     par: 5,
-    fairways: [{ path: p9, width: 28 }],
-    boosts: [boost(p9, 0.27)],
-    water: [circle(at(p9, 0.5, -9), 6)],
-    spinners: [{ ...pt(at(p9, 0.72)), len: 25, speed: 1.6 }],
-    bumpers: [bumper(at(p9, 0.85, 8), 3.5), bumper(at(p9, 0.85, -8), 3.5)],
-    sand: [circle(at(p9, 0.94, 8), 5)],
-    hills: [hill(at(p9, 0.4, 0), 20, 3)],
+    fairways: [
+      { path: p9stem, width: 30 },
+      { path: p9left, width: 26 },
+      { path: p9right, width: 30 },
+      { path: p9end, width: 30 },
+    ],
+    tee: at(p9stem, 0.08),
+    cup: c9,
+    boosts: [boost(p9stem, 0.55, 16, 140)],
+    spinners: [{ ...pt(at(p9left, 0.5)), len: 22, speed: 1.6 }],
+    bumpers: [bumper(at(p9right, 0.38, 8)), bumper(at(p9right, 0.5, -8)), bumper(at(p9right, 0.62, 6))],
+    water: [circle(at(p9right, 0.25, -8), 6), circle(at(p9end, 0.4, 8), 6)],
+    sand: [circle(at(p9end, 0.86, 9), 5), circle(at(p9end, 0.86, -9), 5)],
+    hills: [hill(at(p9end, 0.22), 18, 3), hill(c9, 22, -2.5)],
   },
 ];
 
-function pt([x, y]) {
-  return { x, y };
-}
-
 // Which holes to play for shorter rounds (indexes into HOLES).
 export const ROUTES = {
-  3: [0, 3, 8],
-  6: [0, 1, 3, 4, 7, 8],
+  3: [0, 4, 8],
+  6: [0, 1, 2, 4, 6, 8],
   9: [0, 1, 2, 3, 4, 5, 6, 7, 8],
 };

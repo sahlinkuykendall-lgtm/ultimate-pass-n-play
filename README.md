@@ -36,8 +36,9 @@ in Safari on the same Wi-Fi.
 
 ## Games
 
-- **Mini Golf (3D)**: 2 to 4 players on nine long, winding holes with hills, drops, windmills, portals,
-  water, sand, boosts and bumpers. Rendered in 3D with three.js (falls back to 2D without WebGL), chase and
+- **Mini Golf (3D)**: 2 to 4 players on nine long, intricate holes (forks, a spiral volcano, switchback
+  terraces, a portal maze) where balls really roll on hills and drops, plus windmills, portals, water, sand,
+  boosts and punchy bumpers. Rendered in 3D with three.js (falls back to 2D without WebGL), chase and
   overview cameras, drag back to aim and putt. Classic, Ice Rink, Pinball, Bumper Balls, Wild Card and
   Closest to Pin modes, 3/6/9-hole rounds, stroke limits and a full scorecard.
 - **Tic-Tac-Toe**: Classic, Vanishing, Ultimate, Misère and Gobble modes, boards from 3×3 to 7×7,
