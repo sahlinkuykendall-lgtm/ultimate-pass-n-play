@@ -36,13 +36,20 @@ in Safari on the same Wi-Fi.
 
 ## Games
 
-- **Mini Golf**: 2 to 4 players on a 9-hole course with windmills, portals, water, sand, slopes, boosts and bumpers.
-  Drag back to aim and putt. Classic, Ice Rink, Pinball, Bumper Balls, Wild Card and Closest to Pin modes,
-  3/6/9-hole rounds, stroke limits and a full scorecard.
+- **Mini Golf (3D)**: 2 to 4 players on nine long, winding holes with hills, drops, windmills, portals,
+  water, sand, boosts and bumpers. Rendered in 3D with three.js (falls back to 2D without WebGL), chase and
+  overview cameras, drag back to aim and putt. Classic, Ice Rink, Pinball, Bumper Balls, Wild Card and
+  Closest to Pin modes, 3/6/9-hole rounds, stroke limits and a full scorecard.
 - **Tic-Tac-Toe**: Classic, Vanishing, Ultimate, Misère and Gobble modes, boards from 3×3 to 7×7,
   adjustable line length, emoji mark themes, best-of series, turn timer, undo and a face-to-face table mode.
 - **Dots & Boxes**: 2 to 4 players. Classic, Treasure, Islands, Reverse and Strict modes, five board sizes,
   press-and-slide line drawing, chain combos, turn timer, undo and multi-round matches.
+
+## Updates
+
+The app checks for a new version every time it opens or comes back to the foreground and reloads
+itself (never mid-game). If a phone ever gets stuck on an old version, use **Settings → Force update**.
+Bump `APP_VERSION` in `js/app.js` and `CACHE` in `sw.js` with each release.
 
 ## Adding a game
 
@@ -76,7 +83,8 @@ js/app.js               screens: intro, library, detail, players, settings, game
 js/games.js             the game catalog (edit this to add/rename games)
 js/games/tic-tac-toe/   rules engine, UI and styles for Tic-Tac-Toe
 js/games/dots-and-boxes/ rules engine, UI and styles for Dots & Boxes
-js/games/mini-golf/     physics engine, course, canvas renderer, UI and styles for Mini Golf
+js/games/mini-golf/     physics engine, course, 3D (three.js) + 2D renderers, UI and styles for Mini Golf
+js/vendor/three.js      tree-shaken three.js build (regenerate with scripts/build-three.mjs)
 js/games/kit.js         shared setup helpers: player picker, segmented rows, mode cards
 js/ui.js                sheets, toasts, confirm, pass-the-phone handoff
 js/store.js             saved players + settings (localStorage)

@@ -1,6 +1,7 @@
 import * as E from './engine.js';
 import { HOLES, ROUTES } from './course.js';
 import { drawStatic, drawDynamic } from './render.js';
+import { Course3D, webglAvailable } from './render3d.js';
 import { icon } from '../../icons.js';
 import { playersSection, toggleSeat, shuffle, segRow, modeGrid, loadStyles, initial, escapeHtml } from '../kit.js';
 
@@ -98,9 +99,10 @@ class MiniGolf {
       cv.width = w * dpr;
       cv.height = h * dpr;
       const g = cv.getContext('2d');
-      const s = Math.min(w / E.FIELD.w, h / E.FIELD.h);
-      g.setTransform(dpr * s, 0, 0, dpr * s, (dpr * (w - E.FIELD.w * s)) / 2, (dpr * (h - E.FIELD.h * s)) / 2);
       const world = E.buildWorld(hole);
+      const B = world.bounds;
+      const s = Math.min(w / B.w, h / B.h);
+      g.setTransform(dpr * s, 0, 0, dpr * s, dpr * ((w - B.w * s) / 2 - B.x * s), dpr * ((h - B.h * s) / 2 - B.y * s));
       drawStatic(g, world);
       drawDynamic(g, world, 0, { balls: [], seats: [], activeSeat: -1, aiming: false, aim: null, trails: [], fx: [], holeNumber: n + 1 });
     });
@@ -108,7 +110,23 @@ class MiniGolf {
 
   /* -------------------------------------------------------------- Match */
 
+  init3d() {
+    if (this.use3d !== undefined) return;
+    this.use3d = false;
+    if (!webglAvailable()) return;
+    try {
+      this.canvas3d = document.createElement('canvas');
+      this.canvas3d.className = 'golf-canvas';
+      this.r3 = new Course3D(this.canvas3d);
+      this.use3d = true;
+    } catch (err) {
+      console.warn('3D unavailable, using 2D', err);
+      this.r3 = null;
+    }
+  }
+
   startMatch() {
+    this.init3d();
     this.cfg.seats = this.seats.map((p) => p.id);
     this.ctx.storage.set(this.cfg);
     this.match = {
@@ -172,21 +190,28 @@ class MiniGolf {
           <span class="golf-par">Par ${this.hole.par}</span>
         </div>
         ${this.twist ? `<div class="golf-twist">${icon('sparkle')}<b>${this.twist.name}</b><span>${this.twist.desc}</span></div>` : ''}
-        <div class="golf-stage">
-          <canvas class="golf-canvas"></canvas>
+        <div class="golf-stage ${this.use3d ? 'is-3d' : ''}">
+          ${this.use3d ? '' : '<canvas class="golf-canvas"></canvas>'}
           <div class="golf-banner"></div>
           <div class="golf-callouts"></div>
           <div class="golf-power"><i></i></div>
         </div>
         <div class="kit-controls">
+          ${this.use3d ? `<button class="kit-ctrl" data-act="overview">${icon('map')}<span>Overview</span></button>` : ''}
           <button class="kit-ctrl" data-act="scorecard">${icon('trophy')}<span>Scorecard</span></button>
           <button class="kit-ctrl" data-act="setup">${icon('settings')}<span>Setup</span></button>
         </div>
       </div>`;
     this.gameEl = this.root.querySelector('.golf-game');
     this.stageEl = this.root.querySelector('.golf-stage');
-    this.canvas = this.root.querySelector('.golf-canvas');
-    this.g = this.canvas.getContext('2d');
+    if (this.use3d) {
+      this.stageEl.prepend(this.canvas3d);
+      this.canvas = this.canvas3d;
+      this.r3.setHole(this.world, m.index + 1, this.seats);
+    } else {
+      this.canvas = this.root.querySelector('.golf-canvas');
+      this.g = this.canvas.getContext('2d');
+    }
     this.wireCanvas();
     this.resizeObs = new ResizeObserver(() => this.layout());
     this.resizeObs.observe(this.stageEl);
@@ -200,15 +225,21 @@ class MiniGolf {
     if (!r.width || !r.height) return;
     const dpr = Math.min(devicePixelRatio || 1, 3);
     this.dpr = dpr;
+    this.stageH = r.height;
+    if (this.use3d) {
+      this.r3.resize(r.width, r.height, dpr);
+      return;
+    }
     this.canvas.width = Math.round(r.width * dpr);
     this.canvas.height = Math.round(r.height * dpr);
     // Keep room above the course for the turn banner and below it for the power meter.
     const top = 46;
     const bottom = 24;
     const avail = Math.max(10, r.height - top - bottom);
-    this.scale = Math.min(r.width / E.FIELD.w, avail / E.FIELD.h);
-    this.ox = (r.width - E.FIELD.w * this.scale) / 2;
-    this.oy = top + (avail - E.FIELD.h * this.scale) / 2;
+    const B = this.world.bounds;
+    this.scale = Math.min(r.width / B.w, avail / B.h);
+    this.ox = (r.width - B.w * this.scale) / 2 - B.x * this.scale;
+    this.oy = top + (avail - B.h * this.scale) / 2 - B.y * this.scale;
     // Cache the static course
     this.staticCanvas = document.createElement('canvas');
     this.staticCanvas.width = this.canvas.width;
@@ -252,7 +283,10 @@ class MiniGolf {
       }
       if (this.phase === 'roll' && E.allResting(this.balls)) this.afterRest();
       this.fx = this.fx.filter((f) => this.clock - f.t < 1);
-      this.draw();
+      if (this.use3d) {
+        this.r3.update(dt, { balls: this.balls, activeSeat: this.turn, aiming: this.phase === 'aim' });
+        this.r3.render();
+      } else this.draw();
     };
     this.raf = requestAnimationFrame(tick);
   }
@@ -321,8 +355,15 @@ class MiniGolf {
     banner.classList.remove('is-new');
     void banner.offsetWidth;
     banner.classList.add('is-new');
+    this.r3?.focusBall(b);
+    this.setOverviewLabel();
     this.updateHud();
     this.ctx.haptic(8);
+  }
+
+  setOverviewLabel() {
+    const btn = this.root.querySelector('[data-act="overview"] span');
+    if (btn) btn.textContent = this.r3?.isOverview && this.phase === 'aim' ? 'My ball' : 'Overview';
   }
 
   // Put a ball on the tee, nudged sideways if another ball is sitting there.
@@ -332,7 +373,7 @@ class MiniGolf {
     for (const dx of [0, 6, -6, 12, -12]) {
       const x = this.world.tee[0] + dx;
       const clear = this.balls.every((o) => o === b || !o.active || o.sunk || Math.hypot(o.x - x, o.y - b.y) > E.BALL_R * 2.5);
-      if (clear && E.pointIn({ poly: this.hole.outline }, x, b.y)) {
+      if (clear && this.world.outlines.some((o) => E.pointIn({ poly: o }, x, b.y))) {
         b.x = x;
         return;
       }
@@ -347,26 +388,41 @@ class MiniGolf {
       return [(e.clientX - r.left - this.ox) / this.scale, (e.clientY - r.top - this.oy) / this.scale];
     };
     const meter = () => this.root.querySelector('.golf-power');
+    const screen = (e) => [e.clientX, e.clientY];
     cv.addEventListener('pointerdown', (e) => {
       if (this.phase !== 'aim') return;
       cv.setPointerCapture(e.pointerId);
-      start = toWorld(e);
+      start = this.use3d ? screen(e) : toWorld(e);
     });
     cv.addEventListener('pointermove', (e) => {
       if (!start || this.phase !== 'aim') return;
-      const [x, y] = toWorld(e);
-      const pull = [x - start[0], y - start[1]];
-      const len = Math.hypot(...pull);
-      const power = Math.min(len / MAX_PULL, 1);
+      let dir;
+      let power;
+      let pull = [0, 0];
+      let len;
+      if (this.use3d) {
+        const [x, y] = screen(e);
+        const dx = x - start[0];
+        const dy = y - start[1];
+        len = Math.hypot(dx, dy);
+        power = Math.min(len / Math.min(220, (this.stageH || 600) * 0.34), 1);
+        dir = this.r3.dragToShot(dx, dy, this.world.mirror);
+      } else {
+        const [x, y] = toWorld(e);
+        pull = [x - start[0], y - start[1]];
+        len = Math.hypot(...pull);
+        power = Math.min(len / MAX_PULL, 1);
+        const sign = this.world.mirror ? 1 : -1;
+        dir = [(sign * pull[0]) / len, (sign * pull[1]) / len];
+      }
       if (power < 0.04) {
         this.aim = null;
+        this.r3?.setAim(null);
         meter().classList.remove('on');
         return;
       }
-      const sign = this.world.mirror ? 1 : -1;
-      const dir = [(sign * pull[0]) / len, (sign * pull[1]) / len];
       const ball = this.balls[this.turn];
-      const shown = (Math.min(len, MAX_PULL) / len) * 0.8;
+      const shown = len ? (Math.min(len, MAX_PULL) / len) * 0.8 : 0;
       this.aim = {
         ball,
         dir,
@@ -374,6 +430,7 @@ class MiniGolf {
         pull: [pull[0] * shown, pull[1] * shown],
         path: E.previewPath(this.world, ball, dir[0], dir[1], power, 14 + power * 30),
       };
+      this.r3?.setAim(this.aim, this.seats[this.turn].color);
       const m = meter();
       m.classList.add('on');
       m.style.setProperty('--p', power);
@@ -385,12 +442,14 @@ class MiniGolf {
       meter().classList.remove('on');
       const aim = this.aim;
       this.aim = null;
+      this.r3?.setAim(null);
       if (aim && this.phase === 'aim') this.takeShot(aim.dir, aim.power);
     };
     cv.addEventListener('pointerup', release);
     cv.addEventListener('pointercancel', () => {
       start = null;
       this.aim = null;
+      this.r3?.setAim(null);
       meter().classList.remove('on');
     });
   }
@@ -404,6 +463,8 @@ class MiniGolf {
       }
     }
     E.shoot(b, dir[0], dir[1], power);
+    this.r3?.follow(b);
+    this.setOverviewLabel();
     this.strokes[this.turn]++;
     this.shotInFlight = true;
     this.phase = 'roll';
@@ -443,11 +504,13 @@ class MiniGolf {
         case 'portal':
           sfx.tone({ freq: 300, to: 1300, dur: 0.25, gain: 0.04 });
           this.fx.push({ type: 'portal', x: e.to[0], y: e.to[1], t: this.clock });
+          this.r3?.spawn('portal', e.to[0], e.to[1], 0xffffff);
           break;
         case 'water': {
           sfx.tone({ freq: 700, to: 120, dur: 0.35, gain: 0.045 });
           sfx.tone({ freq: 220, to: 70, dur: 0.3, type: 'triangle', gain: 0.03, delay: 0.05 });
           this.fx.push({ type: 'splash', x: e.x, y: e.y, t: this.clock });
+          this.r3?.spawn('splash', e.x, e.y, 0xbfdbfe);
           const own = seat === this.turn && this.shotInFlight;
           if (this.isPin) {
             if (own) this.wet[seat] = true;
@@ -468,6 +531,7 @@ class MiniGolf {
 
   onSink(seat) {
     this.fx.push({ type: 'sink', t: this.clock });
+    this.r3?.spawn('sink', this.world.cup.x, this.world.cup.y, 0xfde68a);
     this.trails[seat] = [];
     const sfx = this.ctx.sfx;
     [1046.5, 784, 523.25].forEach((f, i) => sfx.tone({ freq: f, dur: 0.07, type: 'triangle', gain: 0.04, delay: i * 0.05 }));
@@ -764,6 +828,12 @@ class MiniGolf {
         return this.startHole();
       case 'rematch':
         return this.startMatch();
+      case 'overview':
+        if (!this.r3) return;
+        this.ctx.sfx.tap();
+        if (this.r3.isOverview && this.phase === 'aim') this.r3.focusBall(this.balls[this.turn]);
+        else this.r3.overview();
+        return this.setOverviewLabel();
       case 'scorecard':
         this.ctx.sfx.tap();
         if (this.phase === 'between') {
@@ -787,6 +857,7 @@ class MiniGolf {
 
   destroy() {
     this.stopLoop();
+    this.r3?.dispose();
     this.timers.forEach(clearTimeout);
   }
 }

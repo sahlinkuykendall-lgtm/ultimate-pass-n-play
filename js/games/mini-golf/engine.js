@@ -1,12 +1,14 @@
-// Mini golf physics. Pure JS, no DOM. The course lives in a 100 × 160 field
-// (portrait). Everything advances in fixed steps of DT seconds so results are
-// deterministic and testable.
+// Mini golf physics. Pure JS, no DOM. Physics runs on the ground plane (x, y);
+// terrain height only adds slope forces. Everything advances in fixed steps of
+// DT seconds so results are deterministic and testable.
 //
 // Shapes:   { rect: [x, y, w, h] } | { circle: [x, y, r] } | { poly: [[x, y], ...] }
-// Hole:     { name, par, tee, cup, outline, walls?, blocks?, bumpers?, spinners?,
-//             sand?, water?, ice?, slopes?, boosts?, portals? }
+// Hole:     { name, par, fairways: [{ path: [[x, y, height?, width?], ...], width }]
+//             (or outline / outlines), tee?, cup?, hills?: [{ x, y, r, h }],
+//             walls?, blocks?, bumpers?, spinners?, sand?, water?, ice?, slopes?, boosts?, portals? }
 
-export const FIELD = { w: 100, h: 160 };
+export const FIELD = { w: 100, h: 160 }; // legacy default bounds
+export const GRAVITY = 150; // slope force per unit of terrain gradient
 export const BALL_R = 2.2;
 export const CUP_R = 3.6;
 export const MAX_SPEED = 170;
@@ -75,12 +77,169 @@ function closestOnSeg(px, py, x1, y1, x2, y2) {
   return [x1 + dx * t, y1 + dy * t];
 }
 
+/* --------------------------------------------------------------- Fairways */
+
+// Centripetal-ish Catmull-Rom through control points, resampled every `step` units.
+// Control points: [x, y, height = 0, width = undefined]
+export function smoothPath(ctrl, step = 3) {
+  const P = ctrl.map(([x, y, h = 0, w]) => ({ x, y, h, w }));
+  const pts = [P[0], ...P, P[P.length - 1]];
+  const raw = [];
+  for (let i = 1; i < pts.length - 2; i++) {
+    const [p0, p1, p2, p3] = [pts[i - 1], pts[i], pts[i + 1], pts[i + 2]];
+    const seg = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    const n = Math.max(2, Math.ceil(seg / 1.5));
+    for (let k = 0; k < n; k++) {
+      const t = k / n;
+      const t2 = t * t;
+      const t3 = t2 * t;
+      const cr = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+      const lerp = (a, b) => (a == null && b == null ? undefined : (a ?? b) + ((b ?? a) - (a ?? b)) * (t * t * (3 - 2 * t)));
+      raw.push({ x: cr(p0.x, p1.x, p2.x, p3.x), y: cr(p0.y, p1.y, p2.y, p3.y), h: lerp(p1.h, p2.h), w: lerp(p1.w, p2.w) });
+    }
+  }
+  raw.push({ ...P[P.length - 1] });
+  // Resample at even spacing and record arc length
+  const out = [{ ...raw[0], s: 0 }];
+  let acc = 0;
+  for (let i = 1; i < raw.length; i++) {
+    const d = Math.hypot(raw[i].x - raw[i - 1].x, raw[i].y - raw[i - 1].y);
+    acc += d;
+    if (acc >= step || i === raw.length - 1) {
+      out.push({ ...raw[i], s: out[out.length - 1].s + acc });
+      acc = 0;
+    }
+  }
+  return out;
+}
+
+// Point along a path at fraction t (0..1) of its length, pushed sideways by `side` units.
+export function along(path, t, side = 0) {
+  const pts = Array.isArray(path[0]) ? smoothPath(path) : path;
+  const total = pts[pts.length - 1].s;
+  const target = Math.max(0, Math.min(1, t)) * total;
+  let i = 1;
+  while (i < pts.length - 1 && pts[i].s < target) i++;
+  const a = pts[i - 1];
+  const b = pts[i];
+  const k = (target - a.s) / (b.s - a.s || 1);
+  const tx = b.x - a.x;
+  const ty = b.y - a.y;
+  const len = Math.hypot(tx, ty) || 1;
+  return [a.x + tx * k - (ty / len) * side, a.y + ty * k + (tx / len) * side];
+}
+
+export function fairwayOutline(f) {
+  const pts = smoothPath(f.path, 2.5);
+  const half = (p) => (p.w ?? f.width) / 2;
+  const left = [];
+  const right = [];
+  pts.forEach((p, i) => {
+    const a = pts[Math.max(0, i - 1)];
+    const b = pts[Math.min(pts.length - 1, i + 1)];
+    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const nx = -(b.y - a.y) / len;
+    const ny = (b.x - a.x) / len;
+    left.push([p.x + nx * half(p), p.y + ny * half(p)]);
+    right.push([p.x - nx * half(p), p.y - ny * half(p)]);
+  });
+  const cap = (c, from, sweep) => {
+    const out = [];
+    const r = Math.hypot(from[0] - c.x, from[1] - c.y);
+    const a0 = Math.atan2(from[1] - c.y, from[0] - c.x);
+    for (let k = 1; k < 10; k++) {
+      const a = a0 + (sweep * k) / 10;
+      out.push([c.x + Math.cos(a) * r, c.y + Math.sin(a) * r]);
+    }
+    return out;
+  };
+  const end = pts[pts.length - 1];
+  const start = pts[0];
+  return [...left, ...cap(end, left[left.length - 1], -Math.PI), ...right.reverse(), ...cap(start, right[right.length - 1] ?? right[0], -Math.PI)];
+}
+
+// Memoized per hole: outlines, dense centerlines and the terrain height grid.
+const PREP = new WeakMap();
+function prepare(hole) {
+  if (PREP.has(hole)) return PREP.get(hole);
+  const paths = (hole.fairways ?? []).map((f) => smoothPath(f.path, 2));
+  const outlines = hole.outlines ?? (hole.fairways ? hole.fairways.map(fairwayOutline) : [hole.outline]);
+  const xs = outlines.flat().map((p) => p[0]);
+  const ys = outlines.flat().map((p) => p[1]);
+  const bounds = { x: Math.min(...xs) - 6, y: Math.min(...ys) - 6 };
+  bounds.w = Math.max(...xs) + 6 - bounds.x;
+  bounds.h = Math.max(...ys) + 6 - bounds.y;
+
+  const first = paths[0];
+  const last = paths[paths.length - 1];
+  const tee = hole.tee ?? (first ? along(first, Math.min(0.5, 10 / first[first.length - 1].s)) : [50, 140]);
+  const cup = hole.cup ?? (last ? along(last, 1 - Math.min(0.5, 14 / last[last.length - 1].s)) : [50, 30]);
+
+  // Height grid, 1 unit per cell
+  const gx = Math.ceil(bounds.w) + 1;
+  const gy = Math.ceil(bounds.h) + 1;
+  const grid = new Float32Array(gx * gy);
+  const hills = hole.hills ?? [];
+  const hasPathHeight = paths.some((p) => p.some((q) => q.h));
+  for (let j = 0; j < gy; j++) {
+    for (let i = 0; i < gx; i++) {
+      const x = bounds.x + i;
+      const y = bounds.y + j;
+      let h = 0;
+      if (hasPathHeight) {
+        let best = Infinity;
+        for (const path of paths) {
+          for (const q of path) {
+            const d = (q.x - x) ** 2 + (q.y - y) ** 2;
+            if (d < best) {
+              best = d;
+              h = q.h;
+            }
+          }
+        }
+      }
+      for (const hl of hills) {
+        const s = hl.r / 2.4;
+        h += hl.h * Math.exp(-((x - hl.x) ** 2 + (y - hl.y) ** 2) / (2 * s * s));
+      }
+      grid[j * gx + i] = h;
+    }
+  }
+  const prep = { paths, outlines, bounds, tee, cup, terrain: { grid, gx, gy, x0: bounds.x, y0: bounds.y } };
+  PREP.set(hole, prep);
+  return prep;
+}
+
+export function heightAt(w, x, y) {
+  const t = w.terrain;
+  const fx = Math.max(0, Math.min(t.gx - 1.001, x - t.x0));
+  const fy = Math.max(0, Math.min(t.gy - 1.001, y - t.y0));
+  const i = Math.floor(fx);
+  const j = Math.floor(fy);
+  const u = fx - i;
+  const v = fy - j;
+  const g = t.grid;
+  const a = g[j * t.gx + i];
+  const b = g[j * t.gx + i + 1];
+  const c = g[(j + 1) * t.gx + i];
+  const d = g[(j + 1) * t.gx + i + 1];
+  return a * (1 - u) * (1 - v) + b * u * (1 - v) + c * (1 - u) * v + d * u * v;
+}
+
+export function slopeAt(w, x, y) {
+  const e = 0.75;
+  return [(heightAt(w, x + e, y) - heightAt(w, x - e, y)) / (2 * e), (heightAt(w, x, y + e) - heightAt(w, x, y - e)) / (2 * e)];
+}
+
 /* ------------------------------------------------------------------ World */
 
 export function buildWorld(hole, { mode = 'classic', twist = null, seed = 1 } = {}) {
   const phys = { ...MODE_PHYSICS[mode] };
-  const segments = [...polySegs(hole.outline), ...(hole.walls ?? []).map(([a, b]) => [...a, ...b])];
+  const prep = prepare(hole);
+  const segments = [...prep.outlines.flatMap(polySegs), ...(hole.walls ?? []).map(([a, b]) => [...a, ...b])];
   for (const b of hole.blocks ?? []) segments.push(...(b.rect ? rectSegs(b.rect) : polySegs(b.poly)));
+  const segGrid = buildSegGrid(segments, prep.bounds);
+  const hilly = (hole.hills?.length ?? 0) > 0 || prep.paths.some((p) => p.some((q) => q.h));
 
   let cupR = CUP_R;
   let cupAmp = 0;
@@ -98,6 +257,12 @@ export function buildWorld(hole, { mode = 'classic', twist = null, seed = 1 } = 
   return {
     hole,
     segments,
+    segGrid,
+    outlines: prep.outlines,
+    paths: prep.paths,
+    bounds: prep.bounds,
+    terrain: prep.terrain,
+    hilly,
     bumpers: (hole.bumpers ?? []).map((b) => ({ ...b, hit: -1 })),
     spinners: hole.spinners ?? [],
     portals: hole.portals ?? [],
@@ -108,8 +273,8 @@ export function buildWorld(hole, { mode = 'classic', twist = null, seed = 1 } = 
       ...(hole.slopes ?? []).map((z) => ({ ...z, kind: 'slope' })),
       ...(hole.boosts ?? []).map((z) => ({ ...z, kind: 'boost' })),
     ],
-    cup: { x: hole.cup[0], y: hole.cup[1], r: cupR, amp: cupAmp },
-    tee: hole.tee,
+    cup: { x: prep.cup[0], y: prep.cup[1], r: cupR, amp: cupAmp },
+    tee: prep.tee,
     wind,
     mirror: twist === 'mirror',
     collide: !!phys.collide,
@@ -120,6 +285,30 @@ export function buildWorld(hole, { mode = 'classic', twist = null, seed = 1 } = 
     sandF: { decel: phys.sandDecel ?? SURFACE.sand.decel, drag: SURFACE.sand.drag },
     t: 0,
   };
+}
+
+const CELL = 10;
+function buildSegGrid(segments, b) {
+  const cols = Math.ceil(b.w / CELL) + 1;
+  const rows = Math.ceil(b.h / CELL) + 1;
+  const cells = Array.from({ length: cols * rows }, () => []);
+  const pad = BALL_R + 1;
+  segments.forEach((s, idx) => {
+    const c0 = Math.max(0, Math.floor((Math.min(s[0], s[2]) - pad - b.x) / CELL));
+    const c1 = Math.min(cols - 1, Math.floor((Math.max(s[0], s[2]) + pad - b.x) / CELL));
+    const r0 = Math.max(0, Math.floor((Math.min(s[1], s[3]) - pad - b.y) / CELL));
+    const r1 = Math.min(rows - 1, Math.floor((Math.max(s[1], s[3]) + pad - b.y) / CELL));
+    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) cells[r * cols + c].push(idx);
+  });
+  return { cells, cols, rows, x0: b.x, y0: b.y };
+}
+
+function nearbySegments(w, x, y) {
+  const g = w.segGrid;
+  const c = Math.floor((x - g.x0) / CELL);
+  const r = Math.floor((y - g.y0) / CELL);
+  if (c < 0 || r < 0 || c >= g.cols || r >= g.rows) return w.segments.map((_, i) => i);
+  return g.cells[r * g.cols + c];
 }
 
 export function cupPos(w) {
@@ -145,6 +334,10 @@ export function placeAtTee(w, ball) {
 export function shoot(ball, dx, dy, power) {
   ball.lastX = ball.x;
   ball.lastY = ball.y;
+  const len = Math.hypot(dx, dy);
+  if (!Number.isFinite(len) || len === 0 || !Number.isFinite(power)) return false;
+  dx /= len;
+  dy /= len;
   const s = Math.max(0, Math.min(1, power)) * MAX_SPEED;
   ball.vx = dx * s;
   ball.vy = dy * s;
@@ -163,6 +356,11 @@ function frictionAt(w, x, y) {
 function zoneAccel(w, x, y) {
   let ax = 0;
   let ay = 0;
+  if (w.hilly) {
+    const [sx, sy] = slopeAt(w, x, y);
+    ax -= sx * GRAVITY;
+    ay -= sy * GRAVITY;
+  }
   for (const z of w.zones) {
     if (pointIn(z.shape, x, y)) {
       ax += z.accel[0];
@@ -187,6 +385,10 @@ export function step(w, balls) {
 }
 
 function stepBall(w, b, events) {
+  if (!Number.isFinite(b.x) || !Number.isFinite(b.y)) {
+    // Never let a corrupt position wedge the game: put the ball back where the shot began
+    Object.assign(b, { x: b.lastX, y: b.lastY, vx: 0, vy: 0 });
+  }
   const moving = b.vx !== 0 || b.vy !== 0;
   const [zx, zy] = zoneAccel(w, b.x, b.y);
   if (!moving && zx === 0 && zy === 0) {
@@ -213,6 +415,10 @@ function stepBall(w, b, events) {
     b.vx *= k;
     b.vy *= k;
   }
+  if (!Number.isFinite(b.vx) || !Number.isFinite(b.vy)) {
+    b.vx = 0;
+    b.vy = 0;
+  }
   const cap = MAX_SPEED * 1.35;
   const s2 = speedOf(b);
   if (s2 > cap) {
@@ -223,8 +429,11 @@ function stepBall(w, b, events) {
   b.x += b.vx * DT;
   b.y += b.vy * DT;
 
-  // Static walls
-  for (const [x1, y1, x2, y2] of w.segments) bounce(b, x1, y1, x2, y2, 0, 0, w.wallE, events, 'wall');
+  // Static walls (only the ones near the ball)
+  for (const i of nearbySegments(w, b.x, b.y)) {
+    const [x1, y1, x2, y2] = w.segments[i];
+    bounce(b, x1, y1, x2, y2, 0, 0, w.wallE, events, 'wall');
+  }
 
   // Rotating bars: include the bar's own velocity at the contact point.
   for (const sp of w.spinners) {

@@ -1,6 +1,6 @@
 // Canvas renderer for the mini golf course. Draws in field units (100 × 160);
 // the caller supplies a transform that maps the field onto the canvas.
-import { FIELD, BALL_R, cupPos, spinnerEnds, pointIn } from './engine.js';
+import { BALL_R, cupPos, spinnerEnds, pointIn } from './engine.js';
 
 const WALL = '#efeaff';
 const WALL_GLOW = 'rgba(167, 139, 250, 0.55)';
@@ -28,17 +28,19 @@ function roundRect(g, x, y, w, h, r) {
   g.closePath();
 }
 
-function outlinePath(g, hole) {
+function outlinePath(g, world) {
   g.beginPath();
-  hole.outline.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
-  g.closePath();
+  for (const outline of world.outlines) {
+    outline.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+    g.closePath();
+  }
 }
 
 // Seeded speckles so sand looks the same every frame.
-function speckle(g, shape, color, density, seed) {
+function speckle(g, shape, color, density, seed, B) {
   let s = seed;
   const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-  const [x0, y0, w, h] = shape.rect ?? (shape.circle ? [shape.circle[0] - shape.circle[2], shape.circle[1] - shape.circle[2], shape.circle[2] * 2, shape.circle[2] * 2] : [0, 0, FIELD.w, FIELD.h]);
+  const [x0, y0, w, h] = shape.rect ?? (shape.circle ? [shape.circle[0] - shape.circle[2], shape.circle[1] - shape.circle[2], shape.circle[2] * 2, shape.circle[2] * 2] : [B.x, B.y, B.w, B.h]);
   g.fillStyle = color;
   const n = Math.round(w * h * density);
   for (let i = 0; i < n; i++) {
@@ -51,31 +53,40 @@ function speckle(g, shape, color, density, seed) {
 // Static parts: turf, sand, ice, walls, blocks, tee. Cached per hole and size.
 export function drawStatic(g, world) {
   const hole = world.hole;
+  const B = world.bounds;
 
   // Turf with mowing stripes
-  outlinePath(g, hole);
-  const turf = g.createLinearGradient(0, 0, FIELD.w, FIELD.h);
+  outlinePath(g, world);
+  const turf = g.createLinearGradient(B.x, B.y, B.x + B.w, B.y + B.h);
   turf.addColorStop(0, '#1fae68');
   turf.addColorStop(1, '#0c7a45');
   g.fillStyle = turf;
   g.fill();
   g.save();
-  outlinePath(g, hole);
+  outlinePath(g, world);
   g.clip();
   g.fillStyle = 'rgba(255, 255, 255, 0.045)';
-  for (let i = -FIELD.h; i < FIELD.w + FIELD.h; i += 16) {
+  for (let i = B.x - B.h; i < B.x + B.w + B.h; i += 16) {
     g.beginPath();
-    g.moveTo(i, 0);
-    g.lineTo(i + 8, 0);
-    g.lineTo(i + 8 - FIELD.h * 0.6, FIELD.h);
-    g.lineTo(i - FIELD.h * 0.6, FIELD.h);
+    g.moveTo(i, B.y);
+    g.lineTo(i + 8, B.y);
+    g.lineTo(i + 8 - B.h * 0.6, B.y + B.h);
+    g.lineTo(i - B.h * 0.6, B.y + B.h);
     g.closePath();
     g.fill();
+  }
+  // Hills: lighter crowns
+  for (const hl of hole.hills ?? []) {
+    const grad = g.createRadialGradient(hl.x, hl.y, 0, hl.x, hl.y, hl.r);
+    grad.addColorStop(0, `rgba(255, 255, 255, ${Math.min(0.22, 0.03 * hl.h)})`);
+    grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    g.fillStyle = grad;
+    g.fillRect(hl.x - hl.r, hl.y - hl.r, hl.r * 2, hl.r * 2);
   }
   // Inner shade along the walls
   g.strokeStyle = 'rgba(0, 0, 0, 0.22)';
   g.lineWidth = 7;
-  outlinePath(g, hole);
+  outlinePath(g, world);
   g.stroke();
   g.restore();
 
@@ -91,7 +102,7 @@ export function drawStatic(g, world) {
     g.strokeStyle = 'rgba(120, 80, 20, 0.35)';
     g.lineWidth = 0.8;
     g.stroke();
-    speckle(g, s, 'rgba(120, 82, 30, 0.35)', 0.5, 1000 + i * 97);
+    speckle(g, s, 'rgba(120, 82, 30, 0.35)', 0.5, 1000 + i * 97, B);
   });
 
   // Ice
@@ -105,7 +116,7 @@ export function drawStatic(g, world) {
   });
 
   // Tee pad
-  const [tx, ty] = hole.tee;
+  const [tx, ty] = world.tee;
   g.beginPath();
   roundRect(g, tx - 6, ty - 3.2, 12, 6.4, 3.2);
   g.fillStyle = 'rgba(255, 255, 255, 0.14)';
@@ -129,7 +140,7 @@ export function drawStatic(g, world) {
   g.shadowBlur = 6;
   g.strokeStyle = WALL;
   g.lineWidth = 2.6;
-  outlinePath(g, hole);
+  outlinePath(g, world);
   g.stroke();
   for (const [a, b] of hole.walls ?? []) {
     g.beginPath();
@@ -146,13 +157,13 @@ export function drawStatic(g, world) {
 
 // Everything that moves or animates.
 export function drawDynamic(g, world, t, { balls, seats, activeSeat, aiming, aim, trails, fx, holeNumber }) {
-  const hole = world.hole;
+  const B = world.bounds;
 
   // Water with ripples
   world.water.forEach((s) => {
     g.save();
     pathShape(g, s);
-    const grad = g.createLinearGradient(0, 0, 0, FIELD.h);
+    const grad = g.createLinearGradient(0, B.y, 0, B.y + B.h);
     grad.addColorStop(0, '#2a86f0');
     grad.addColorStop(1, '#0d4fb3');
     g.fillStyle = grad;
@@ -160,11 +171,11 @@ export function drawDynamic(g, world, t, { balls, seats, activeSeat, aiming, aim
     g.clip();
     g.strokeStyle = 'rgba(255, 255, 255, 0.18)';
     g.lineWidth = 0.6;
-    for (let y = 0; y < FIELD.h; y += 5) {
+    for (let y = B.y; y < B.y + B.h; y += 5) {
       g.beginPath();
-      for (let x = 0; x <= FIELD.w; x += 2) {
+      for (let x = B.x; x <= B.x + B.w; x += 2) {
         const yy = y + Math.sin(x * 0.25 + t * 2 + y) * 0.8;
-        x ? g.lineTo(x, yy) : g.moveTo(x, yy);
+        x > B.x ? g.lineTo(x, yy) : g.moveTo(x, yy);
       }
       g.stroke();
     }
@@ -185,7 +196,7 @@ export function drawDynamic(g, world, t, { balls, seats, activeSeat, aiming, aim
     g.clip();
     const [ax, ay] = z.accel;
     const ang = Math.atan2(ay, ax);
-    const [x0, y0, w, h] = z.shape.rect ?? [0, 0, FIELD.w, FIELD.h];
+    const [x0, y0, w, h] = z.shape.rect ?? [B.x, B.y, B.w, B.h];
     const cx = x0 + w / 2;
     const cy = y0 + h / 2;
     g.translate(cx, cy);

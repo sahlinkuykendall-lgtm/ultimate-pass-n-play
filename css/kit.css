@@ -179,6 +179,7 @@
   transition: transform 0.2s var(--ease-out), opacity 0.2s;
 }
 .kit-ctrl .ico { font-size: 16px; }
+.kit-ctrl span { white-space: nowrap; }
 .kit-ctrl:active { transform: scale(0.94); }
 .kit-ctrl:disabled { opacity: 0.3; }
 /* ---------------------------------------------------------- Results */

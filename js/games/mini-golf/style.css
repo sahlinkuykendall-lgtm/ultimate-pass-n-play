@@ -195,6 +195,11 @@
   display: grid;
   place-items: center;
   background: rgba(7, 7, 12, 0.35);
+}
+.is-3d > .golf-intro {
+  place-items: end center;
+  padding-bottom: 28px;
+  background: linear-gradient(180deg, transparent 50%, rgba(7, 7, 12, 0.55));
   animation: fade-in 0.3s var(--ease-out) both;
   opacity: 0;
   cursor: pointer;
@@ -264,3 +269,9 @@
 .golf-table td.is-over { background: rgba(251, 113, 133, 0.16); color: #fecdd3; }
 .golf-table td.is-ace { background: linear-gradient(135deg, #fde68a, #f59e0b); color: #1a1206; }
 .golf-table td.golf-tot { font-weight: 800; background: rgba(255, 255, 255, 0.1); color: #fff; }
+
+/* 3D view runs edge to edge */
+.golf-stage.is-3d { margin: 0 calc(var(--gutter) * -1); }
+.golf-stage.is-3d .golf-canvas { touch-action: none; }
+.golf-stage.is-3d .golf-banner { top: 10px; }
+.golf-stage.is-3d .golf-power { bottom: 14px; width: 160px; }
