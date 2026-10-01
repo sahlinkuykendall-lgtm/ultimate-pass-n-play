@@ -4,7 +4,7 @@ import { sfx, haptic, unlockAudio } from './fx.js';
 import { icon, logoMark } from './icons.js';
 import { openSheet, sheetIsOpen, toast, confirm, passTo, confetti, escapeHtml } from './ui.js';
 
-export const APP_VERSION = '0.5.0';
+export const APP_VERSION = '0.6.0';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
