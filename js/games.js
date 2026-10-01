@@ -23,18 +23,6 @@ export const CATEGORIES = [
 
 export const GAMES = [
   {
-    id: 'imposter',
-    name: 'Imposter',
-    tagline: 'One of you is lying.',
-    description: 'Everyone sees the secret word except the imposter. Pass the phone, give one-word clues, and vote out the faker before they blend in.',
-    players: [3, 12],
-    time: '10 min',
-    categories: ['party'],
-    colors: ['#7c3aed', '#db2777'],
-    icon: 'mask',
-    featured: true,
-  },
-  {
     id: 'tic-tac-toe',
     name: 'Tic-Tac-Toe',
     tagline: 'The classic, reinvented.',
@@ -48,6 +36,31 @@ export const GAMES = [
     load: () => import('./games/tic-tac-toe/index.js'),
   },
   {
+    id: 'dots-and-boxes',
+    name: 'Dots & Boxes',
+    tagline: 'Close the box. Steal the game.',
+    description: 'Five ways to play for 2 to 4 players: Classic, Treasure, Islands, Reverse and Strict. Five board sizes, chain combos, turn timers and multi-round matches.',
+    players: [2, 4],
+    time: '5–15 min',
+    categories: ['strategy', 'quick'],
+    colors: ['#e879f9', '#f43f5e'],
+    icon: 'boxes',
+    featured: true,
+    load: () => import('./games/dots-and-boxes/index.js'),
+  },
+  {
+    id: 'imposter',
+    name: 'Imposter',
+    tagline: 'One of you is lying.',
+    description: 'Everyone sees the secret word except the imposter. Pass the phone, give one-word clues, and vote out the faker before they blend in.',
+    players: [3, 12],
+    time: '10 min',
+    categories: ['party'],
+    colors: ['#7c3aed', '#db2777'],
+    icon: 'mask',
+    featured: true,
+  },
+  {
     id: 'truth-or-dare',
     name: 'Truth or Dare',
     tagline: 'No backing out.',
@@ -57,7 +70,6 @@ export const GAMES = [
     categories: ['party'],
     colors: ['#ef4444', '#f97316'],
     icon: 'flame',
-    featured: true,
   },
   {
     id: 'connect-four',

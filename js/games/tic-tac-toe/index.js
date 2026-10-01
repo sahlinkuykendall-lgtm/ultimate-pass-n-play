@@ -121,7 +121,7 @@ class TicTacToe {
     this.stopTimer();
     this.clearPending();
     this.locked = false;
-    const scroll = this.root.querySelector('.ttt-setup-scroll')?.scrollTop ?? 0;
+    const scroll = this.root.querySelector('.kit-setup-scroll')?.scrollTop ?? 0;
     const c = this.cfg;
     const k = c.mode === 'ultimate' || c.mode === 'gobble' ? 3 : c.line;
     const fixedBoard = c.mode === 'ultimate' || c.mode === 'gobble';
@@ -152,10 +152,10 @@ class TicTacToe {
         }).join('')}</span>`;
 
     this.root.innerHTML = `
-      <div class="ttt-setup">
-        <div class="ttt-setup-scroll">
-          <section class="ttt-sec">
-            <h3 class="ttt-h">Players</h3>
+      <div class="kit-setup">
+        <div class="kit-setup-scroll">
+          <section class="kit-sec">
+            <h3 class="kit-h">Players</h3>
             <div class="ttt-seats">
               ${seatPick(0)}
               <button class="ttt-swap" data-act="swap" aria-label="Swap who goes first">${icon('swap')}</button>
@@ -163,21 +163,21 @@ class TicTacToe {
             </div>
             ${
               bench.length
-                ? `<p class="ttt-hint">Tap a seat, then a player to swap them in.</p>
-                   <div class="ttt-bench">${bench
-                     .map((p) => `<button class="ttt-bench-p" data-act="bench" data-v="${p.id}"><span class="avatar" style="--pc:${p.color}">${initial(p)}</span>${escapeHtml(p.name)}</button>`)
+                ? `<p class="kit-hint">Tap a seat, then a player to swap them in.</p>
+                   <div class="kit-people">${bench
+                     .map((p) => `<button class="kit-person" data-act="bench" data-v="${p.id}"><span class="avatar" style="--pc:${p.color}">${initial(p)}</span>${escapeHtml(p.name)}</button>`)
                      .join('')}</div>`
                 : ''
             }
           </section>
 
-          <section class="ttt-sec">
-            <h3 class="ttt-h">Mode</h3>
-            <div class="ttt-modes">
+          <section class="kit-sec">
+            <h3 class="kit-h">Mode</h3>
+            <div class="kit-modes">
               ${MODES.map(
                 (m) => `
-                <button class="ttt-mode ${c.mode === m.id ? 'on' : ''}" data-act="mode" data-v="${m.id}">
-                  <span class="ttt-mode-ico">${svg(m.icon)}</span>
+                <button class="kit-mode ${c.mode === m.id ? 'on' : ''}" data-act="mode" data-v="${m.id}">
+                  <span class="kit-mode-ico">${svg(m.icon)}</span>
                   <strong>${m.name}</strong>
                   <small>${m.desc(m.id === 'ultimate' || m.id === 'gobble' ? 3 : c.line)}</small>
                 </button>`,
@@ -185,18 +185,18 @@ class TicTacToe {
             </div>
           </section>
 
-          <section class="ttt-sec">
-            <h3 class="ttt-h">Board ${preview}</h3>
+          <section class="kit-sec">
+            <h3 class="kit-h">Board ${preview}</h3>
             ${
               fixedBoard
-                ? `<p class="ttt-fixed">${c.mode === 'ultimate' ? 'Nine 3×3 boards in a 3×3 grid. Win three boards in a row.' : '3×3 board. Each player gets two small, two medium and two large pieces.'}</p>`
-                : `<div class="ttt-row"><span class="ttt-label">Size</span><div class="ttt-seg">${SIZES.map((n) => opt('size', n, `${n}×${n}`)).join('')}</div></div>
-                   <div class="ttt-row"><span class="ttt-label">In a row</span><div class="ttt-seg">${lines.map((n) => opt('line', n, n)).join('')}</div></div>`
+                ? `<p class="kit-fixed">${c.mode === 'ultimate' ? 'Nine 3×3 boards in a 3×3 grid. Win three boards in a row.' : '3×3 board. Each player gets two small, two medium and two large pieces.'}</p>`
+                : `<div class="kit-row"><span class="kit-label">Size</span><div class="kit-seg">${SIZES.map((n) => opt('size', n, `${n}×${n}`)).join('')}</div></div>
+                   <div class="kit-row"><span class="kit-label">In a row</span><div class="kit-seg">${lines.map((n) => opt('line', n, n)).join('')}</div></div>`
             }
           </section>
 
-          <section class="ttt-sec">
-            <h3 class="ttt-h">Marks</h3>
+          <section class="kit-sec">
+            <h3 class="kit-h">Marks</h3>
             <div class="ttt-themes">
               ${THEMES.map(
                 (t) => `
@@ -208,11 +208,11 @@ class TicTacToe {
             </div>
           </section>
 
-          <section class="ttt-sec">
-            <h3 class="ttt-h">Match</h3>
-            <div class="ttt-row"><span class="ttt-label">Best of</span><div class="ttt-seg">${BEST_OF.map((n) => opt('bestOf', n, n || '∞')).join('')}</div></div>
-            <div class="ttt-row"><span class="ttt-label">Turn timer</span><div class="ttt-seg">${TIMERS.map((n) => opt('timer', n, n ? `${n}s` : 'Off')).join('')}</div></div>
-            <div class="list ttt-list">
+          <section class="kit-sec">
+            <h3 class="kit-h">Match</h3>
+            <div class="kit-row"><span class="kit-label">Best of</span><div class="kit-seg">${BEST_OF.map((n) => opt('bestOf', n, n || '∞')).join('')}</div></div>
+            <div class="kit-row"><span class="kit-label">Turn timer</span><div class="kit-seg">${TIMERS.map((n) => opt('timer', n, n ? `${n}s` : 'Off')).join('')}</div></div>
+            <div class="list kit-list">
               <label class="row">
                 <span class="row-icon" style="--rc:#14b8a6">${icon('table')}</span>
                 <span class="row-label">Table mode<small>Face each other across a table. The top side flips.</small></span>
@@ -221,12 +221,12 @@ class TicTacToe {
             </div>
           </section>
         </div>
-        <div class="ttt-start">
+        <div class="kit-start">
           <button class="btn btn-primary" data-act="start">${icon('play')}Start match</button>
         </div>
       </div>`;
-    this.root.querySelector('.ttt-setup').classList.toggle('no-anim', rerender);
-    this.root.querySelector('.ttt-setup-scroll').scrollTop = scroll;
+    this.root.querySelector('.kit-setup').classList.toggle('no-anim', rerender);
+    this.root.querySelector('.kit-setup-scroll').scrollTop = scroll;
   }
 
   /* -------------------------------------------------------------- Match */
@@ -264,11 +264,11 @@ class TicTacToe {
         <div class="ttt-board-wrap"><div class="ttt-board-box">${s.mode === 'ultimate' ? this.ultimateHtml() : this.gridHtml()}</div></div>
         ${s.mode === 'gobble' ? '<div class="ttt-tray-slot"></div>' : ''}
         ${c.table ? this.playerCard(0) : ''}
-        <div class="ttt-controls">
-          <button class="ttt-ctrl" data-act="undo">${icon('undo')}<span>Undo</span></button>
+        <div class="kit-controls">
+          <button class="kit-ctrl" data-act="undo">${icon('undo')}<span>Undo</span></button>
           ${c.table ? `<span class="ttt-round-inline">${roundInfo}</span>` : ''}
-          <button class="ttt-ctrl" data-act="restart">${icon('replay')}<span>Restart</span></button>
-          <button class="ttt-ctrl" data-act="setup">${icon('settings')}<span>Setup</span></button>
+          <button class="kit-ctrl" data-act="restart">${icon('replay')}<span>Restart</span></button>
+          <button class="kit-ctrl" data-act="setup">${icon('settings')}<span>Setup</span></button>
         </div>
       </div>`;
 
@@ -600,24 +600,24 @@ class TicTacToe {
     }
 
     const overlay = document.createElement('div');
-    overlay.className = 'ttt-result';
+    overlay.className = 'kit-result';
     overlay.innerHTML = `
-      <div class="ttt-result-card ${winner ? '' : 'is-draw'}" style="--pc:${winner?.color ?? '#a1a1aa'}">
+      <div class="kit-result-card ${winner ? '' : 'is-draw'}" style="--pc:${winner?.color ?? '#a1a1aa'}">
         ${
           winner
-            ? `<div class="ttt-result-hero">${matchOver ? `<span class="ttt-trophy">${icon('trophy')}</span>` : ''}<span class="avatar" style="--pc:${winner.color}">${initial(winner)}</span></div>`
-            : `<div class="ttt-result-hero is-draw"><span class="mk-box">${this.mark(0)}</span><span class="mk-box">${this.mark(1)}</span></div>`
+            ? `<div class="kit-result-hero">${matchOver ? `<span class="kit-trophy">${icon('trophy')}</span>` : ''}<span class="avatar" style="--pc:${winner.color}">${initial(winner)}</span></div>`
+            : `<div class="kit-result-hero is-draw"><span class="mk-box">${this.mark(0)}</span><span class="mk-box">${this.mark(1)}</span></div>`
         }
-        <p class="ttt-result-eyebrow">${eyebrow}</p>
+        <p class="kit-result-eyebrow">${eyebrow}</p>
         <h2>${title}</h2>
-        <p class="ttt-result-sub">${sub}</p>
-        <div class="ttt-result-score">
+        <p class="kit-result-sub">${sub}</p>
+        <div class="kit-result-score">
           <span style="--pc:${p0.color}"><em>${escapeHtml(p0.name)}</em><b>${s0}</b></span>
           <i></i>
           <span style="--pc:${p1.color}"><b>${s1}</b><em>${escapeHtml(p1.name)}</em></span>
         </div>
-        ${this.match.draws ? `<p class="ttt-result-draws">${this.match.draws} draw${this.match.draws === 1 ? '' : 's'}</p>` : ''}
-        <div class="ttt-result-actions">
+        ${this.match.draws ? `<p class="kit-result-draws">${this.match.draws} draw${this.match.draws === 1 ? '' : 's'}</p>` : ''}
+        <div class="kit-result-actions">
           ${
             matchOver
               ? `<button class="btn btn-primary" data-act="rematch">${icon('replay')}Rematch</button>`

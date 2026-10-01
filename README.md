@@ -38,6 +38,8 @@ in Safari on the same Wi-Fi.
 
 - **Tic-Tac-Toe**: Classic, Vanishing, Ultimate, Misère and Gobble modes, boards from 3×3 to 7×7,
   adjustable line length, emoji mark themes, best-of series, turn timer, undo and a face-to-face table mode.
+- **Dots & Boxes**: 2 to 4 players. Classic, Treasure, Islands, Reverse and Strict modes, five board sizes,
+  press-and-slide line drawing, chain combos, turn timer, undo and multi-round matches.
 
 ## Adding a game
 
@@ -65,10 +67,12 @@ in Safari on the same Wi-Fi.
 
 ```
 index.html              app shell + intro markup
-css/app.css             all styles
+css/app.css             app shell styles
+css/kit.css             shared game UI: setup screens, mode cards, controls, result cards
 js/app.js               screens: intro, library, detail, players, settings, game host
 js/games.js             the game catalog (edit this to add/rename games)
 js/games/tic-tac-toe/   rules engine, UI and styles for Tic-Tac-Toe
+js/games/dots-and-boxes/ rules engine, UI and styles for Dots & Boxes
 js/ui.js                sheets, toasts, confirm, pass-the-phone handoff
 js/store.js             saved players + settings (localStorage)
 js/fx.js                synthesized UI sounds + haptics

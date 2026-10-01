@@ -1,0 +1,231 @@
+/* Shared game kit: setup screens, segmented controls, mode cards, controls and
+   result cards. Loaded globally so every game looks like part of the same app. */
+/* ------------------------------------------------------------ Setup */
+
+.kit-setup { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.kit-setup-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px var(--gutter) 28px;
+  scrollbar-width: none;
+}
+.kit-setup-scroll::-webkit-scrollbar { display: none; }
+.kit-start { padding: 10px var(--gutter) calc(var(--sab) + 14px); background: linear-gradient(180deg, transparent, rgba(7, 7, 12, 0.92) 35%); }
+
+.kit-sec { margin-bottom: 28px; animation: fade-up 0.6s var(--ease-out) backwards; }
+.kit-sec:nth-child(2) { animation-delay: 0.05s; }
+.kit-sec:nth-child(3) { animation-delay: 0.1s; }
+.kit-sec:nth-child(4) { animation-delay: 0.15s; }
+.kit-sec:nth-child(5) { animation-delay: 0.2s; }
+.kit-setup.no-anim .kit-sec { animation: none; }
+
+.kit-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 20px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.kit-hint { margin: 14px 0 10px; font-size: 13px; color: var(--text-3); }
+.kit-people {
+  display: flex;
+  gap: 8px;
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 0 var(--gutter);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.kit-people::-webkit-scrollbar { display: none; }
+.kit-person {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px 5px 5px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+}
+.kit-person:active { transform: scale(0.95); }
+.kit-person { position: relative; transition: transform 0.2s var(--ease-out), background 0.25s, border-color 0.25s; }
+.kit-person.on { border-color: color-mix(in srgb, var(--pc) 70%, transparent); background: color-mix(in srgb, var(--pc) 18%, transparent); }
+.kit-person .avatar { width: 28px; height: 28px; font-size: 12px; }
+
+.kit-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.kit-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 112px;
+  padding: 14px;
+  border-radius: 20px;
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  transition: transform 0.25s var(--ease-out), background 0.3s, border-color 0.3s;
+}
+.kit-mode:last-child:nth-child(odd) { grid-column: span 2; min-height: 0; }
+.kit-mode:active { transform: scale(0.97); }
+.kit-mode-ico {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 8px;
+  border-radius: 11px;
+  font-size: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  transition: background 0.3s;
+}
+.kit-mode strong { font-family: var(--font-display); font-size: 16px; font-weight: 700; }
+.kit-mode small { font-size: 13px; line-height: 1.3; color: var(--text-2); }
+.kit-mode.on {
+  background: linear-gradient(160deg, rgba(139, 92, 246, 0.26), rgba(236, 72, 153, 0.12));
+  border-color: rgba(236, 72, 153, 0.65);
+  box-shadow: 0 14px 30px -18px rgba(236, 72, 153, 0.8);
+}
+.kit-mode.on .kit-mode-ico { background: var(--brand); box-shadow: 0 6px 16px -6px rgba(236, 72, 153, 0.8); }
+
+.kit-fixed {
+  padding: 14px 16px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-2);
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+}
+.kit-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.kit-label { flex: none; font-size: 15px; font-weight: 600; }
+.kit-seg {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--stroke);
+}
+.kit-seg button {
+  min-width: 40px;
+  height: 34px;
+  padding: 0 8px;
+  border-radius: 11px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text-2);
+  transition: background 0.25s, color 0.25s, box-shadow 0.25s;
+}
+.kit-seg button.on { color: #0b0a12; background: #fff; box-shadow: 0 4px 14px -6px rgba(255, 255, 255, 0.6); }
+
+.kit-list { margin: 14px 0 0; }
+.kit-list .row { min-height: 64px; }
+.kit-list .row-label small { display: block; margin-top: 2px; font-size: 13px; line-height: 1.3; color: var(--text-2); }
+/* --------------------------------------------------------- Controls */
+
+.kit-controls { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.kit-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-2);
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  transition: transform 0.2s var(--ease-out), opacity 0.2s;
+}
+.kit-ctrl .ico { font-size: 16px; }
+.kit-ctrl:active { transform: scale(0.94); }
+.kit-ctrl:disabled { opacity: 0.3; }
+/* ---------------------------------------------------------- Results */
+
+.kit-result {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(7, 7, 12, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  opacity: 0;
+  animation: fade-in 0.35s var(--ease-out) forwards;
+}
+.kit-result-card {
+  width: 100%;
+  max-width: 340px;
+  padding: 30px 20px 20px;
+  border-radius: 30px;
+  text-align: center;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--pc) 30%, #18172200), rgba(24, 23, 34, 0.96) 55%), rgba(24, 23, 34, 0.96);
+  border: 1px solid var(--stroke-2);
+  box-shadow: 0 30px 80px -24px color-mix(in srgb, var(--pc) 70%, transparent);
+  animation: kit-pop-in 0.65s var(--spring) both;
+}
+@keyframes kit-pop-in { from { opacity: 0; transform: translateY(30px) scale(0.9); } }
+.kit-result-hero { position: relative; display: flex; justify-content: center; margin-bottom: 14px; }
+.kit-result-hero .avatar {
+  width: 88px;
+  height: 88px;
+  font-size: 38px;
+  box-shadow: 0 20px 40px -14px var(--pc), 0 0 0 8px color-mix(in srgb, var(--pc) 20%, transparent);
+}
+.kit-result-hero.is-draw { gap: 12px; }
+.kit-result-hero.is-draw .mk-box { width: 60px; height: 60px; }
+.kit-trophy {
+  position: absolute;
+  top: -12px;
+  right: calc(50% - 64px);
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  font-size: 20px;
+  color: #1a1206;
+  background: linear-gradient(135deg, #fde68a, #f59e0b);
+  box-shadow: 0 8px 20px -6px rgba(245, 158, 11, 0.8);
+  z-index: 1;
+  animation: kit-pop 0.6s 0.3s var(--spring) both;
+}
+.kit-result-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-2); }
+.kit-result-card h2 {
+  margin-top: 6px;
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  word-break: break-word;
+}
+.kit-result-sub { margin-top: 6px; font-size: 15px; color: var(--text-2); }
+.kit-result-score {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 20px 0 4px;
+}
+.kit-result-score span { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+.kit-result-score span:first-child { justify-content: flex-end; }
+.kit-result-score em { font-style: normal; font-size: 14px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kit-result-score b { font-family: var(--font-display); font-size: 34px; font-weight: 800; color: var(--pc); text-shadow: 0 0 20px color-mix(in srgb, var(--pc) 60%, transparent); }
+.kit-result-score i { width: 10px; height: 2px; border-radius: 1px; background: var(--text-3); }
+.kit-result-draws { font-size: 12px; color: var(--text-3); }
+.kit-result-actions { display: grid; gap: 10px; margin-top: 20px; }
+
+@keyframes kit-pop { from { transform: scale(0.2) rotate(-20deg); opacity: 0; } }
+@keyframes kit-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
