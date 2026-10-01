@@ -440,16 +440,59 @@ function openSettings() {
 
 /* ----------------------------------------------------------------- Updates */
 
-// Wipes the offline cache and service worker, then reloads straight from the network.
+// Updates the service worker, wipes the offline cache, refreshes every app file
+// past the browser's own HTTP cache (GitHub Pages lets it keep files for 10
+// minutes), then reloads. Checks the server first so it can say whether there was anything new.
+const UPDATE_KEY = 'pnp:update';
 async function forceUpdate() {
-  toast('Updating to the latest version…', { icon: 'download', duration: 4000 });
+  toast('Checking for updates…', { icon: 'download', duration: 2500 });
+  const bust = `?check=${Date.now()}`;
+  let latest;
+  let files;
   try {
-    const regs = (await navigator.serviceWorker?.getRegistrations()) ?? [];
-    await Promise.all(regs.map((r) => r.unregister()));
+    const [app, sw] = await Promise.all(['js/app.js', 'sw.js'].map((f) => fetch(f + bust, { cache: 'no-store' }).then((r) => (r.ok ? r.text() : Promise.reject()))));
+    latest = app.match(/APP_VERSION = '([^']+)'/)?.[1];
+    files = [...sw.matchAll(/'\.\/([^']*)'/g)].map((m) => m[1] || './');
+  } catch {
+    // Offline: keep the cached copy so the app still works.
+    toast('Can’t reach the server. Check your connection and try again.', { icon: 'download', duration: 3500 });
+    return;
+  }
+  toast(latest && latest !== APP_VERSION ? `Updating to version ${latest}…` : 'Refreshing the app…', { icon: 'download', duration: 4000 });
+  try {
+    // Keep the worker (it is network-first) but make sure the newest one is running,
+    // then drop the offline copies and refetch every file past the HTTP cache.
+    const reg = await navigator.serviceWorker?.getRegistration();
+    if (reg) {
+      await reg.update().catch(() => {});
+      const next = reg.installing ?? reg.waiting;
+      if (next) await new Promise((done) => {
+        next.addEventListener('statechange', () => next.state === 'activated' && done());
+        setTimeout(done, 4000);
+      });
+    }
     const keys = (await globalThis.caches?.keys()) ?? [];
     await Promise.all(keys.map((k) => caches.delete(k)));
+    await Promise.all(files.map((f) => fetch(f, { cache: 'reload' }).catch(() => {})));
   } catch {}
-  setTimeout(() => location.replace(`${location.pathname}?v=${Date.now()}`), 600);
+  try {
+    sessionStorage.setItem(UPDATE_KEY, JSON.stringify({ from: APP_VERSION, to: latest }));
+  } catch {}
+  location.replace(`${location.pathname}?v=${Date.now()}`);
+}
+
+// After a Force update reload: say what happened.
+function reportUpdate() {
+  let info;
+  try {
+    info = JSON.parse(sessionStorage.getItem(UPDATE_KEY));
+    sessionStorage.removeItem(UPDATE_KEY);
+  } catch {}
+  if (!info) return;
+  let msg = `You’re on the latest version (${APP_VERSION}).`;
+  if (info.to && info.to !== APP_VERSION) msg = 'Almost there. Close the app fully and open it again to finish updating.';
+  else if (info.from !== APP_VERSION) msg = `Updated to version ${APP_VERSION}!`;
+  setTimeout(() => toast(msg, { icon: 'download', duration: 3500 }), 900);
 }
 
 let reloadPending = false;
@@ -557,6 +600,7 @@ if (new URLSearchParams(location.search).has('skip')) {
 }
 
 // Clean the cache-busting param left by "Force update".
+reportUpdate();
 if (new URLSearchParams(location.search).has('v')) history.replaceState(null, '', location.pathname);
 
 const isLocal = ['localhost', '127.0.0.1'].includes(location.hostname);

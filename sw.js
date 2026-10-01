@@ -49,6 +49,16 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// GitHub Pages marks files fresh for 10 minutes, so the browser's in-memory cache
+// would happily reuse old scripts without even asking this worker. Re-label what
+// we hand back as no-cache so every load comes through here (network first).
+function revalidating(response) {
+  if (!response.ok || response.type === 'opaque') return response;
+  const headers = new Headers(response.headers);
+  headers.set('Cache-Control', 'no-cache');
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET' || new URL(request.url).origin !== location.origin) return;
@@ -58,11 +68,12 @@ self.addEventListener('fetch', (event) => {
       const cache = await caches.open(CACHE);
       try {
         // no-cache: always revalidate with the server so updates never hide behind the HTTP cache
-        const response = await fetch(request.url, { cache: 'no-cache', credentials: 'same-origin' });
-        if (response.ok) cache.put(request, response.clone());
-        return response;
+        const fresh = await fetch(request.url, { cache: 'no-cache', credentials: 'same-origin' });
+        if (fresh.ok) cache.put(request, fresh.clone());
+        return revalidating(fresh);
       } catch {
-        return (await cache.match(request, { ignoreSearch: true })) || Response.error();
+        const hit = await cache.match(request, { ignoreSearch: true });
+        return hit ? revalidating(hit) : Response.error();
       }
     })(),
   );
