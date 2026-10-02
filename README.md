@@ -47,7 +47,8 @@ in Safari on the same Wi-Fi.
   press-and-slide line drawing, chain combos, turn timer, undo and multi-round matches.
 - **Chess**: full rules (castling, en passant, promotion, repetition, 50-move), chess clocks, drag or tap
   to move, takebacks, draw offers. Classic, Chess960, Three-Check, King of the Hill, Atomic and Fog of War
-  (with a pass-the-phone screen), three board themes and flip / fixed / face-to-face table views.
+  (with a pass-the-phone screen). A tilted 3D wooden board with standing, shaded pieces that turns
+  around to face each player; Wood, Marble and Midnight themes and a flat face-to-face table view.
 - **Connect Four**: 2 to 4 players. Classic, Pop Out, Power Ups (Anvil, Bomb, Double), Gravity Flip,
   Marathon (every line scores) and Blindfold modes, five board sizes, connect 3/4/5, animated drops,
   turn timer, undo and multi-round matches.

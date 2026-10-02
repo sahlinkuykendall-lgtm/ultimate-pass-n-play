@@ -1,5 +1,5 @@
 import { newGame, play, legalMoves, inCheck, kingSq, visible, material, sqName, CENTER } from './engine.js';
-import { pieceSvg } from './pieces.js';
+import { pieceSvg, PIECE_DEFS } from './pieces.js';
 import { icon } from '../../icons.js';
 import { playersSection, shuffle, loadStyles, segRow, modeGrid, initial, escapeHtml } from '../kit.js';
 
@@ -32,8 +32,8 @@ const CLOCKS = [
   ['15+10', '15+10', 15, 10],
 ];
 const VIEWS = [['flip', 'Flip'], ['fixed', 'Fixed'], ['table', 'Table']];
-const THEMES = [['midnight', 'Midnight'], ['classic', 'Green'], ['wood', 'Wood']];
-const DEFAULTS = { mode: 'classic', clock: 'off', view: 'flip', theme: 'midnight', hints: 'on', seats: null };
+const THEMES = [['wood', 'Wood'], ['marble', 'Marble'], ['midnight', 'Midnight']];
+const DEFAULTS = { mode: 'classic', clock: 'off', view: 'flip', theme: 'wood', hints: 'on', seats: null };
 const REASONS = {
   checkmate: 'Checkmate',
   threecheck: 'Three checks',
@@ -66,6 +66,7 @@ class Chess {
     this.roster = ctx.players.length >= 2 ? ctx.players : [...ctx.players, ...GUESTS].slice(0, 2);
     this.cfg = { ...DEFAULTS, ...(ctx.storage.get() ?? {}) };
     if (!MODES.some((m) => m.id === this.cfg.mode)) this.cfg.mode = DEFAULTS.mode;
+    if (!THEMES.some(([id]) => id === this.cfg.theme)) this.cfg.theme = DEFAULTS.theme;
     const seated = (this.cfg.seats ?? []).map((id) => this.roster.find((p) => p.id === id)).filter(Boolean);
     this.seats = seated.length === 2 && seated[0] !== seated[1] ? seated : this.roster.slice(0, 2);
     this.pending = [];
@@ -153,15 +154,27 @@ class Chess {
   renderGame() {
     this.view = 'game';
     const table = this.cfg.view === 'table' && !this.fog;
+    const files = [...'abcdefgh'].map((f) => `<span class="ch-lbl">${f}</span>`).join('');
+    const ranks = [8, 7, 6, 5, 4, 3, 2, 1].map((r) => `<span class="ch-lbl">${r}</span>`).join('');
     this.root.innerHTML = `
-      <div class="ch-game theme-${this.cfg.theme} ${table ? 'is-table' : ''}">
+      ${PIECE_DEFS}
+      <div class="ch-game theme-${this.cfg.theme} ${table ? 'is-table' : 'is-3d'}">
         <div class="ch-hud ch-top"></div>
         <div class="ch-board-wrap">
-          <div class="ch-board">
-            <div class="ch-squares">${Array.from({ length: 64 }, (_, i) => `<i data-d="${i}"></i>`).join('')}</div>
-            <div class="ch-marks"></div>
-            <div class="ch-pieces"></div>
-            <div class="ch-fx"></div>
+          <div class="ch-scene">
+            <div class="ch-table">
+              <i class="ch-edge ch-edge-s"></i><i class="ch-edge ch-edge-n"></i><i class="ch-edge ch-edge-e"></i><i class="ch-edge ch-edge-w"></i>
+              <div class="ch-frame">
+                <div class="ch-files ch-files-s">${files}</div><div class="ch-files ch-files-n">${files}</div>
+                <div class="ch-ranks ch-ranks-w">${ranks}</div><div class="ch-ranks ch-ranks-e">${ranks}</div>
+                <div class="ch-board">
+                  <div class="ch-squares">${Array.from({ length: 64 }, (_, i) => `<i data-sq="${i}" style="--g:${(i * 37) % 100}"></i>`).join('')}</div>
+                  <div class="ch-marks"></div>
+                  <div class="ch-fx"></div>
+                  <div class="ch-pieces"></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="ch-hud ch-bottom"></div>
@@ -177,40 +190,43 @@ class Chess {
         </div>
       </div>`;
     this.gameEl = this.root.querySelector('.ch-game');
+    this.wrapEl = this.root.querySelector('.ch-board-wrap');
     this.boardEl = this.root.querySelector('.ch-board');
+    this.tableEl = this.root.querySelector('.ch-table');
     this.piecesEl = this.root.querySelector('.ch-pieces');
     this.marksEl = this.root.querySelector('.ch-marks');
     this.pieceEls = new Map();
+    this.gameEl.classList.toggle('is-flipped', this.viewer === 'b');
     this.wireBoard();
     this.draw(false);
   }
 
   /* -------------------------------------------------------------- Drawing */
 
-  // Display index (0 = top-left on screen) for a board square, given who's at the bottom.
-  disp(sq) {
-    return this.viewer === 'w' ? sq : 63 - sq;
-  }
-
+  // The board itself always lies with white at the near edge; turning it to face
+  // black is a CSS rotation, so squares and pieces never need remapping.
   draw(animate = true) {
     const s = this.state;
     const seen = this.fog && !this.over ? visible(s, this.viewer) : null;
     const hidden = this.gameEl.classList.contains('is-hidden');
-    this.gameEl.classList.toggle('is-flipped', this.viewer === 'b');
+    const flip = this.viewer === 'b';
+    if (this.gameEl.classList.contains('is-flipped') !== flip) {
+      this.gameEl.classList.toggle('is-flipped', flip);
+      if (animate && !hidden) {
+        this.ctx.sfx.tone({ freq: 220, to: 330, dur: 0.5, type: 'sine', gain: 0.02 });
+      }
+    }
 
-    // Squares: colour, coordinates, fog
     this.root.querySelectorAll('.ch-squares i').forEach((el) => {
-      const d = +el.dataset.d;
-      const sq = this.viewer === 'w' ? d : 63 - d;
-      const r = Math.floor(d / 8);
-      const c = d % 8;
-      el.className = (r + c) % 2 ? 'dk' : 'lt';
-      if (seen && !seen.has(sq)) el.classList.add('fog');
-      if (s.mode === 'koth' && CENTER.includes(sq)) el.classList.add('hill');
-      el.innerHTML = `${c === 0 ? `<span class="rk">${sqName(sq)[1]}</span>` : ''}${r === 7 ? `<span class="fl">${sqName(sq)[0]}</span>` : ''}`;
+      const sq = +el.dataset.sq;
+      const r = Math.floor(sq / 8);
+      const c = sq % 8;
+      let cls = (r + c) % 2 ? 'dk' : 'lt';
+      if (seen && !seen.has(sq)) cls += ' fog';
+      if (s.mode === 'koth' && CENTER.includes(sq)) cls += ' hill';
+      if (el.className !== cls) el.className = cls;
     });
 
-    // Pieces
     const keep = new Set();
     s.board.forEach((p, sq) => {
       if (!p) return;
@@ -221,42 +237,41 @@ class Chess {
       if (!el) {
         el = document.createElement('span');
         el.className = 'ch-piece';
+        el.innerHTML = '<i class="ch-shadow"></i><span class="ch-stand"></span>';
         this.pieceEls.set(p.id, el);
         this.piecesEl.append(el);
         if (animate) el.classList.add('is-new');
       }
       if (el.dataset.art !== art) {
         el.dataset.art = art;
-        el.innerHTML = pieceSvg(p.t, p.c);
+        el.querySelector('.ch-stand').innerHTML = pieceSvg(p.t, p.c);
       }
       el.classList.toggle('is-black', p.c === 'b');
       el.dataset.sq = sq;
-      this.placeEl(el, this.disp(sq), animate && !hidden);
+      this.placeEl(el, sq, animate && !hidden);
     });
     for (const [id, el] of this.pieceEls) {
       if (keep.has(id)) continue;
       this.pieceEls.delete(id);
       if (animate) {
         el.classList.add('is-gone');
-        setTimeout(() => el.remove(), 300);
+        setTimeout(() => el.remove(), 350);
       } else el.remove();
     }
     this.drawMarks();
     this.drawHud();
   }
 
-  placeEl(el, d, animate) {
+  placeEl(el, sq, animate) {
     el.classList.toggle('no-anim', !animate);
-    el.style.transform = `translate(${(d % 8) * 100}%, ${Math.floor(d / 8) * 100}%)`;
+    el.classList.remove('is-lifted');
+    el.style.transform = `translate(${(sq % 8) * 100}%, ${Math.floor(sq / 8) * 100}%)`;
   }
 
   drawMarks() {
     const s = this.state;
     const seen = this.fog && !this.over ? visible(s, this.viewer) : null;
-    const mark = (sq, cls) => {
-      const d = this.disp(sq);
-      return `<span class="ch-mark ${cls}" style="transform:translate(${(d % 8) * 100}%, ${Math.floor(d / 8) * 100}%)"></span>`;
-    };
+    const mark = (sq, cls) => `<span class="ch-mark ${cls}" style="transform:translate(${(sq % 8) * 100}%, ${Math.floor(sq / 8) * 100}%)"></span>`;
     let html = '';
     if (s.last && (!seen || (seen.has(s.last.from) && seen.has(s.last.to)))) html += mark(s.last.from, 'is-last') + mark(s.last.to, 'is-last');
     if (!this.over && inCheck(s, s.turn)) html += mark(kingSq(s.board, s.turn), 'is-check');
@@ -265,6 +280,7 @@ class Chess {
       const k = kingSq(s.board, loser);
       if (k >= 0) html += mark(k, 'is-check');
     }
+    this.pieceEls.forEach((el) => el.classList.toggle('is-sel', +el.dataset.sq === this.selected));
     if (this.selected >= 0) {
       html += mark(this.selected, 'is-sel');
       if (this.cfg.hints === 'on') {
@@ -336,56 +352,63 @@ class Chess {
 
   /* ---------------------------------------------------------------- Input */
 
-  sqAt(e) {
-    const r = this.boardEl.getBoundingClientRect();
-    const c = Math.floor(((e.clientX - r.left) / r.width) * 8);
-    const row = Math.floor(((e.clientY - r.top) / r.height) * 8);
-    if (c < 0 || c > 7 || row < 0 || row > 7) return -1;
-    const d = row * 8 + c;
-    return this.viewer === 'w' ? d : 63 - d;
+  // Hit-test through the 3D board: a tall piece counts as its own square,
+  // otherwise whichever square is under the finger.
+  sqAt(e, squaresOnly = false) {
+    for (const el of document.elementsFromPoint(e.clientX, e.clientY)) {
+      if (squaresOnly && el.closest('.ch-piece')) continue;
+      const hit = el.closest('.ch-piece[data-sq], .ch-squares i[data-sq]');
+      if (hit && this.boardEl.contains(hit) && !hit.classList.contains('is-gone')) return +hit.dataset.sq;
+    }
+    return -1;
   }
 
-  // Tap a piece then a square, or drag a piece onto its square.
+  // Tap a piece then a square, or drag a piece: it lifts and hops square to square under your finger.
   wireBoard() {
-    const board = this.boardEl;
+    const wrap = this.wrapEl;
     let drag = null;
-    board.addEventListener('pointerdown', (e) => {
+    wrap.addEventListener('pointerdown', (e) => {
       if (this.over || this.busy) return;
+      // With a piece picked up, a legal square under the finger wins over a piece standing in front of it
+      if (this.selected >= 0) {
+        const under = this.sqAt(e, true);
+        if (under >= 0 && under !== this.selected && this.tryMove(under)) return;
+      }
       const sq = this.sqAt(e);
       if (sq < 0) return;
       const p = this.state.board[sq];
-      if (this.selected >= 0 && this.tryMove(sq)) return;
+      if (this.selected >= 0 && this.selected !== sq && this.tryMove(sq)) return;
       if (p && p.c === this.state.turn) {
         this.select(sq);
         const el = this.pieceEls.get(p.id);
         if (el) {
-          board.setPointerCapture(e.pointerId);
-          drag = { el, sq, x: e.clientX, y: e.clientY, moved: false };
+          wrap.setPointerCapture(e.pointerId);
+          drag = { el, sq, over: sq, x: e.clientX, y: e.clientY, moved: false };
         }
       } else this.select(-1);
     });
-    board.addEventListener('pointermove', (e) => {
+    wrap.addEventListener('pointermove', (e) => {
       if (!drag) return;
-      const dx = e.clientX - drag.x;
-      const dy = e.clientY - drag.y;
-      if (!drag.moved && Math.hypot(dx, dy) < 6) return;
+      if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 8) return;
       drag.moved = true;
-      const d = this.disp(drag.sq);
-      drag.el.classList.add('is-drag', 'no-anim');
-      drag.el.style.transform = `translate(calc(${(d % 8) * 100}% + ${dx}px), calc(${Math.floor(d / 8) * 100}% + ${dy}px)) scale(1.18)`;
+      const over = this.sqAt(e, true);
+      if (over < 0 || over === drag.over) return;
+      drag.over = over;
+      drag.el.classList.remove('no-anim');
+      drag.el.classList.add('is-lifted');
+      drag.el.style.transform = `translate(${(over % 8) * 100}%, ${Math.floor(over / 8) * 100}%)`;
+      this.ctx.haptic(3);
     });
     const end = (e) => {
       if (!drag) return;
-      const { el, sq, moved } = drag;
+      const { el, sq, over, moved } = drag;
       drag = null;
-      el.classList.remove('is-drag');
       if (!moved) return;
-      const to = e.type === 'pointerup' ? this.sqAt(e) : -1;
-      if (to >= 0 && to !== sq && this.tryMove(to, true)) return;
-      this.placeEl(el, this.disp(sq), true);
+      if (e.type === 'pointerup' && over !== sq && this.tryMove(over, true)) return;
+      this.placeEl(el, sq, true);
     };
-    board.addEventListener('pointerup', end);
-    board.addEventListener('pointercancel', end);
+    wrap.addEventListener('pointerup', end);
+    wrap.addEventListener('pointercancel', end);
   }
 
   select(sq) {
@@ -408,13 +431,12 @@ class Chess {
 
   pickPromotion(to, opts, dropped) {
     const color = this.state.turn;
-    const d = this.disp(to);
     const el = document.createElement('div');
     el.className = 'ch-promo';
-    el.innerHTML = `<div class="ch-promo-card" style="left:${((d % 8) + 0.5) * 12.5}%">${['q', 'r', 'b', 'n']
+    el.innerHTML = `<div class="ch-promo-card"><p>Promote to</p>${['q', 'r', 'b', 'n']
       .map((t) => `<button data-promo="${t}">${pieceSvg(t, color)}</button>`)
       .join('')}</div>`;
-    this.boardEl.append(el);
+    this.wrapEl.append(el);
     this.busy = true;
     el.addEventListener('click', (e) => {
       const t = e.target.closest('[data-promo]')?.dataset.promo;
@@ -488,10 +510,9 @@ class Chess {
   }
 
   burst(sq) {
-    const d = this.disp(sq);
     const el = document.createElement('span');
     el.className = 'ch-burst';
-    el.style.cssText = `left:${((d % 8) + 0.5) * 12.5}%;top:${(Math.floor(d / 8) + 0.5) * 12.5}%`;
+    el.style.cssText = `left:${((sq % 8) + 0.5) * 12.5}%;top:${(Math.floor(sq / 8) + 0.5) * 12.5}%`;
     this.root.querySelector('.ch-fx').append(el);
     this.boardEl.classList.remove('is-shake');
     void this.boardEl.offsetWidth;
