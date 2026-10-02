@@ -321,3 +321,7 @@
 .ch-draw { gap: 12px; }
 .ch-draw .pc { width: 56px; height: 84px; }
 .ch-caps .pc-b, .ch-player-name .pc-b { filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.8)); }
+
+/* WebGL board */
+.ch-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+.ch-game.is-webgl .ch-board-wrap { perspective: none; margin: 0 calc(var(--gutter) * -1); }

@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const sources = ['js/games/mini-golf/render3d.js'];
+const sources = ['js/games/mini-golf/render3d.js', 'js/games/chess/board3d.js'];
 const names = new Set();
 for (const f of sources) for (const m of readFileSync(root + f, 'utf8').matchAll(/THREE\.([A-Z][A-Za-z0-9]+)/g)) names.add(m[1]);
 const entry = `export { ${[...names].sort().join(', ')} } from 'three';\n`;

@@ -58,8 +58,9 @@ const fmtClock = (ms) => {
 };
 
 class Chess {
-  constructor(stage, ctx) {
+  constructor(stage, ctx, Board3D = null) {
     this.ctx = ctx;
+    this.Board3D = Board3D;
     this.root = document.createElement('div');
     this.root.className = 'ch';
     stage.append(this.root);
@@ -80,6 +81,7 @@ class Chess {
     this.view = 'setup';
     this.stopClock();
     this.clearPending();
+    this.disposeBoard();
     const scroll = this.root.querySelector('.kit-setup-scroll')?.scrollTop ?? 0;
     const c = this.cfg;
     this.root.innerHTML = `
@@ -197,8 +199,27 @@ class Chess {
     this.marksEl = this.root.querySelector('.ch-marks');
     this.pieceEls = new Map();
     this.gameEl.classList.toggle('is-flipped', this.viewer === 'b');
+    this.disposeBoard();
+    if (this.Board3D) {
+      // Real 3D board: replace the CSS scene with a WebGL canvas
+      this.root.querySelector('.ch-scene').remove();
+      this.gameEl.classList.add('is-webgl');
+      try {
+        this.b3 = new this.Board3D(this.wrapEl, { theme: this.cfg.theme, table });
+        this.b3.setViewer(this.viewer, false);
+      } catch {
+        this.b3 = null;
+        this.Board3D = null;
+        return this.renderGame();
+      }
+    }
     this.wireBoard();
     this.draw(false);
+  }
+
+  disposeBoard() {
+    this.b3?.dispose();
+    this.b3 = null;
   }
 
   /* -------------------------------------------------------------- Drawing */
@@ -210,6 +231,15 @@ class Chess {
     const seen = this.fog && !this.over ? visible(s, this.viewer) : null;
     const hidden = this.gameEl.classList.contains('is-hidden');
     const flip = this.viewer === 'b';
+    if (this.b3) {
+      const live = animate && !hidden;
+      this.b3.setViewer(this.viewer, live);
+      const fogged = seen ? new Set([...Array(64).keys()].filter((i) => !seen.has(i))) : null;
+      this.b3.sync(s.board, { animate: live, hidden: fogged });
+      this.drawMarks();
+      this.drawHud();
+      return;
+    }
     if (this.gameEl.classList.contains('is-flipped') !== flip) {
       this.gameEl.classList.toggle('is-flipped', flip);
       if (animate && !hidden) {
@@ -271,6 +301,30 @@ class Chess {
   drawMarks() {
     const s = this.state;
     const seen = this.fog && !this.over ? visible(s, this.viewer) : null;
+    if (this.b3) {
+      let check = -1;
+      if (!this.over && inCheck(s, s.turn)) check = kingSq(s.board, s.turn);
+      if (this.over?.winner && ['checkmate', 'threecheck', 'time', 'resign'].includes(this.over.reason)) check = kingSq(s.board, this.over.winner === 'w' ? 'b' : 'w');
+      const targets = [];
+      if (this.selected >= 0 && this.cfg.hints === 'on') {
+        const done = new Set();
+        for (const m of this.targets) {
+          const to = this.targetSq(m);
+          if (done.has(to)) continue;
+          done.add(to);
+          targets.push({ sq: to, capture: !!m.capture });
+        }
+      }
+      this.b3.setMarks({
+        last: s.last && (!seen || (seen.has(s.last.from) && seen.has(s.last.to))) ? s.last : null,
+        selected: this.selected,
+        targets,
+        check,
+        hill: s.mode === 'koth' ? CENTER : [],
+        fog: seen,
+      });
+      return;
+    }
     const mark = (sq, cls) => `<span class="ch-mark ${cls}" style="transform:translate(${(sq % 8) * 100}%, ${Math.floor(sq / 8) * 100}%)"></span>`;
     let html = '';
     if (s.last && (!seen || (seen.has(s.last.from) && seen.has(s.last.to)))) html += mark(s.last.from, 'is-last') + mark(s.last.to, 'is-last');
@@ -355,6 +409,7 @@ class Chess {
   // Hit-test through the 3D board: a tall piece counts as its own square,
   // otherwise whichever square is under the finger.
   sqAt(e, squaresOnly = false) {
+    if (this.b3) return this.b3.pick(e.clientX, e.clientY, squaresOnly);
     for (const el of document.elementsFromPoint(e.clientX, e.clientY)) {
       if (squaresOnly && el.closest('.ch-piece')) continue;
       const hit = el.closest('.ch-piece[data-sq], .ch-squares i[data-sq]');
@@ -380,8 +435,8 @@ class Chess {
       if (this.selected >= 0 && this.selected !== sq && this.tryMove(sq)) return;
       if (p && p.c === this.state.turn) {
         this.select(sq);
-        const el = this.pieceEls.get(p.id);
-        if (el) {
+        const el = this.b3 ? null : this.pieceEls.get(p.id);
+        if (el || this.b3) {
           wrap.setPointerCapture(e.pointerId);
           drag = { el, sq, over: sq, x: e.clientX, y: e.clientY, moved: false };
         }
@@ -391,6 +446,14 @@ class Chess {
       if (!drag) return;
       if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 8) return;
       drag.moved = true;
+      if (this.b3) {
+        const over = this.b3.drag(drag.sq, e.clientX, e.clientY);
+        if (over !== drag.over) {
+          drag.over = over;
+          if (over >= 0) this.ctx.haptic(3);
+        }
+        return;
+      }
       const over = this.sqAt(e, true);
       if (over < 0 || over === drag.over) return;
       drag.over = over;
@@ -404,8 +467,9 @@ class Chess {
       const { el, sq, over, moved } = drag;
       drag = null;
       if (!moved) return;
-      if (e.type === 'pointerup' && over !== sq && this.tryMove(over, true)) return;
-      this.placeEl(el, sq, true);
+      if (e.type === 'pointerup' && over >= 0 && over !== sq && this.tryMove(over, true)) return;
+      if (this.b3) this.b3.endDrag(sq);
+      else this.placeEl(el, sq, true);
     };
     wrap.addEventListener('pointerup', end);
     wrap.addEventListener('pointercancel', end);
@@ -443,6 +507,7 @@ class Chess {
       el.remove();
       this.busy = false;
       if (!t) {
+        this.b3?.endDrag(opts[0].from);
         this.draw(false);
         return;
       }
@@ -460,6 +525,10 @@ class Chess {
     this.selected = -1;
     this.targets = [];
     if (this.clock) this.clock[prev.turn] += this.clock.inc;
+    if (this.b3 && dropped) {
+      this.b3.dropFromHover(m.to);
+      dropped = false; // let everything else (captures, castling rook) animate
+    }
     this.moveFx(next.events, dropped);
     if (this.fog && !next.result) {
       // Show the mover their own move for a beat, then hide the board and hand over
@@ -510,6 +579,7 @@ class Chess {
   }
 
   burst(sq) {
+    if (this.b3) return this.b3.burst(sq);
     const el = document.createElement('span');
     el.className = 'ch-burst';
     el.style.cssText = `left:${((sq % 8) + 0.5) * 12.5}%;top:${(Math.floor(sq / 8) + 0.5) * 12.5}%`;
@@ -715,13 +785,28 @@ class Chess {
   destroy() {
     this.stopClock();
     this.clearPending();
+    this.disposeBoard();
+  }
+}
+
+function hasWebGL() {
+  try {
+    const c = document.createElement('canvas');
+    const gl = c.getContext('webgl2') || c.getContext('webgl');
+    gl?.getExtension('WEBGL_lose_context')?.loseContext();
+    return !!gl;
+  } catch {
+    return false;
   }
 }
 
 export default {
   async mount(stage, ctx) {
     const link = await loadStyles(new URL('./style.css', import.meta.url).href);
-    const game = new Chess(stage, ctx);
+    // Real 3D board when WebGL is available (?flat forces the lightweight CSS board)
+    let Board3D = null;
+    if (!new URLSearchParams(location.search).has('flat') && hasWebGL()) Board3D = (await import('./board3d.js').catch(() => null))?.Board3D ?? null;
+    const game = new Chess(stage, ctx, Board3D);
     if (new URLSearchParams(location.search).has('debug')) window.__chess = game;
     game.showSetup();
     return () => {
