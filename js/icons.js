@@ -29,6 +29,7 @@ const PATHS = {
   grid: '<path d="M9 3.5v17M15 3.5v17M3.5 9h17M3.5 15h17"/>',
   flag: '<path d="M6 21V3.5"/><path d="M6 4l11 4.5L6 13"/><path d="M3 21h7"/>',
   boxes: '<path d="M5 5h7v7H5z"/><path d="M12 12h7M12 12v7" opacity=".55"/><circle cx="19" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="5" cy="19" r="1.3" fill="currentColor" stroke="none"/><circle cx="19" cy="19" r="1.3" fill="currentColor" stroke="none"/>',
+  chess: '<path d="M7 21h10M8 17h8l-1-5 2-2-2-5-3 2-4 2v2l2 1-2 5z"/><circle cx="11" cy="8" r=".6" fill="currentColor"/>',
   connect: '<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="8" cy="9" r="1.8"/><circle cx="16" cy="9" r="1.8"/><circle cx="8" cy="15" r="1.8" fill="currentColor"/><circle cx="12" cy="15" r="1.8" fill="currentColor"/><circle cx="16" cy="15" r="1.8" fill="currentColor"/><circle cx="12" cy="9" r="1.8" fill="currentColor"/>',
   dots: '<circle cx="6" cy="6" r="2.2"/><circle cx="12" cy="6" r="2.2"/><circle cx="18" cy="6" r="2.2"/><circle cx="6" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="18" cy="12" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="12" cy="18" r="2.2"/><circle cx="18" cy="18" r="2.2"/>',
   mask: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',

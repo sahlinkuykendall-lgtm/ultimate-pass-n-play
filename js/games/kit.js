@@ -24,7 +24,7 @@ export function loadStyles(url) {
 
 // "Players" section: turn order cards, shuffle button and roster chips to add/remove.
 // Wire clicks with toggleSeat() for data-act="toggle" and shuffle() for data-act="shuffle".
-export function playersSection({ roster, seats, max }) {
+export function playersSection({ roster, seats, max, hint }) {
   return `
     <section class="kit-sec">
       <h3 class="kit-h">Players <span class="kit-count">${seats.length} of ${max}</span></h3>
@@ -45,7 +45,7 @@ export function playersSection({ roster, seats, max }) {
       </div>
       ${
         roster.length > 2
-          ? `<p class="kit-hint">Tap to add or remove players. 2 to ${max} can play.</p>
+          ? `<p class="kit-hint">${hint ?? `Tap to add or remove players. 2 to ${max} can play.`}</p>
              <div class="kit-people">${roster
                .map((p) => {
                  const seat = seats.indexOf(p);

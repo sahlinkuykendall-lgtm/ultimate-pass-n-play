@@ -45,6 +45,9 @@ in Safari on the same Wi-Fi.
   adjustable line length, emoji mark themes, best-of series, turn timer, undo and a face-to-face table mode.
 - **Dots & Boxes**: 2 to 4 players. Classic, Treasure, Islands, Reverse and Strict modes, five board sizes,
   press-and-slide line drawing, chain combos, turn timer, undo and multi-round matches.
+- **Chess**: full rules (castling, en passant, promotion, repetition, 50-move), chess clocks, drag or tap
+  to move, takebacks, draw offers. Classic, Chess960, Three-Check, King of the Hill, Atomic and Fog of War
+  (with a pass-the-phone screen), three board themes and flip / fixed / face-to-face table views.
 - **Connect Four**: 2 to 4 players. Classic, Pop Out, Power Ups (Anvil, Bomb, Double), Gravity Flip,
   Marathon (every line scores) and Blindfold modes, five board sizes, connect 3/4/5, animated drops,
   turn timer, undo and multi-round matches.
@@ -87,6 +90,7 @@ js/app.js               screens: intro, library, detail, players, settings, game
 js/games.js             the game catalog (edit this to add/rename games)
 js/games/tic-tac-toe/   rules engine, UI and styles for Tic-Tac-Toe
 js/games/dots-and-boxes/ rules engine, UI and styles for Dots & Boxes
+js/games/chess/         rules engine (perft-tested), piece art, UI and styles for Chess
 js/games/connect-four/  rules engine, UI and styles for Connect Four
 js/games/mini-golf/     physics engine, course, 3D (three.js) + 2D renderers, UI and styles for Mini Golf
 js/vendor/three.js      tree-shaken three.js build (regenerate with scripts/build-three.mjs)
