@@ -1,6 +1,8 @@
 import { newRound, play, isLegal, legalMoves, landingRow, floorRow, cell, FLIP_EVERY } from './engine.js';
 import { icon } from '../../icons.js';
-import { playersSection, toggleSeat, shuffle, loadStyles, segRow, modeGrid, initial, escapeHtml, svgIcon } from '../kit.js';
+import { playersSection, toggleSeat, shuffle, loadStyles, segRow, modeGrid, initial, escapeHtml, svgIcon, isBot, thinking, botTurn, cancelBot } from '../kit.js';
+import { botLevel } from '../../bots.js';
+import { chooseMove } from './ai.js';
 
 const GUESTS = [
   { id: 'guest-1', name: 'Player 1', color: '#f43f5e' },
@@ -648,7 +650,10 @@ class ConnectFour {
 
   startTurn() {
     this.stopTimer();
-    if (this.state.result || !this.cfg.timer) return;
+    if (this.state.result) return;
+    const player = this.seats[this.state.turn];
+    if (isBot(player)) return this.botMove(player);
+    if (!this.cfg.timer) return;
     const ms = this.cfg.timer * 1000;
     const bar = this.root.querySelector(`.c4-player[data-seat="${this.state.turn}"] .c4-timer i`);
     if (bar) {
@@ -658,6 +663,29 @@ class ConnectFour {
     }
     [3, 2, 1].forEach((t) => this.timers.push(setTimeout(() => this.ctx.sfx.tick(), ms - t * 1000)));
     this.timers.push(setTimeout(() => this.timeUp(), ms));
+  }
+
+  // The bot hovers over its column for a beat (showing what the move does), then plays.
+  botMove(player) {
+    this.locked = true;
+    this.root.querySelector('.c4-turn').innerHTML = `<span class="c4-turn-dot" style="--pc:${player.color}"></span>${thinking(player)}`;
+    botTurn(
+      this,
+      () => chooseMove(this.state, botLevel(player)),
+      (m) => {
+        this.action = m.kind;
+        this.update();
+        this.setHover(m.col);
+        this.pending.push(
+          setTimeout(() => {
+            this.setHover(null);
+            this.locked = false;
+            this.move(m);
+          }, 420),
+        );
+      },
+      { min: 500 },
+    );
   }
 
   stopTimer() {
@@ -682,7 +710,10 @@ class ConnectFour {
 
   undo() {
     if (!this.history.length || this.state.result || this.locked) return;
-    this.state = this.history.pop();
+    cancelBot(this);
+    // Step back past the bots' moves to the last turn a person took
+    do this.state = this.history.pop();
+    while (this.history.length && isBot(this.seats[this.state.turn]));
     this.action = 'drop';
     this.ctx.sfx.close();
     this.ctx.haptic();

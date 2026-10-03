@@ -1,7 +1,9 @@
 import { newRound, play, isPlayable, legalMoves, edgeInfo, edgeId, boxesOf, standings } from './engine.js';
 import { icon } from '../../icons.js';
 import { escapeHtml } from '../../ui.js';
-import { playersSection, toggleSeat, shuffle, loadStyles } from '../kit.js';
+import { playersSection, toggleSeat, shuffle, loadStyles, initial, isBot, thinking, botTurn, cancelBot } from '../kit.js';
+import { botLevel } from '../../bots.js';
+import { chooseMove } from './ai.js';
 
 const GUESTS = [
   { id: 'guest-1', name: 'Player 1', color: '#8b5cf6' },
@@ -63,7 +65,6 @@ const PAD = 28;
 
 const svgIcon = (paths) =>
   `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
-const initial = (p) => escapeHtml(p.name.trim()[0]?.toUpperCase() ?? '?');
 const fmt = (v) => (v < 0 ? `−${-v}` : `+${v}`);
 
 class DotsAndBoxes {
@@ -441,7 +442,10 @@ class DotsAndBoxes {
 
   startTurn() {
     this.stopTimer();
-    if (this.state.result || !this.cfg.timer) return;
+    if (this.state.result) return;
+    const player = this.seats[this.state.turn];
+    if (isBot(player)) return this.botMove(player);
+    if (!this.cfg.timer) return;
     const ms = this.cfg.timer * 1000;
     const bar = this.root.querySelector(`.dab-player[data-seat="${this.state.turn}"] .dab-timer i`);
     if (bar) {
@@ -451,6 +455,27 @@ class DotsAndBoxes {
     }
     [3, 2, 1].forEach((t) => this.timers.push(setTimeout(() => this.ctx.sfx.tick(), ms - t * 1000)));
     this.timers.push(setTimeout(() => this.timeUp(), ms));
+  }
+
+  // The bot's line glows for a moment before it's drawn. Chains go quicker.
+  botMove(player) {
+    this.locked = true;
+    if (!this.state.chain) this.root.querySelector('.dab-turn').innerHTML = `<span class="dab-turn-dot" style="--pc:${player.color}"></span>${thinking(player)}`;
+    botTurn(
+      this,
+      () => chooseMove(this.state, botLevel(player)),
+      (id) => {
+        this.setPreview(id);
+        this.pending.push(
+          setTimeout(() => {
+            this.setPreview(null);
+            this.locked = false;
+            this.move(id);
+          }, 260),
+        );
+      },
+      { min: this.state.chain ? 160 : 520 },
+    );
   }
 
   stopTimer() {
@@ -474,7 +499,10 @@ class DotsAndBoxes {
 
   undo() {
     if (!this.history.length || this.state.result || this.locked) return;
-    this.state = this.history.pop();
+    cancelBot(this);
+    // Step back past the bots' moves to the last turn a person took
+    do this.state = this.history.pop();
+    while (this.history.length && isBot(this.seats[this.state.turn]));
     this.ctx.sfx.close();
     this.ctx.haptic();
     this.update();

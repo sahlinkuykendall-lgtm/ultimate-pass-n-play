@@ -3,7 +3,9 @@ import { HOLES, ROUTES } from './course.js';
 import { drawStatic, drawDynamic } from './render.js';
 import { Course3D, webglAvailable } from './render3d.js';
 import { icon } from '../../icons.js';
-import { playersSection, toggleSeat, shuffle, segRow, modeGrid, loadStyles, initial, escapeHtml } from '../kit.js';
+import { playersSection, toggleSeat, shuffle, segRow, modeGrid, loadStyles, initial, escapeHtml, isBot, thinking } from '../kit.js';
+import { botLevel } from '../../bots.js';
+import { planShot, timed, prepareHole } from './ai.js';
 
 const GUESTS = [
   { id: 'guest-1', name: 'Player 1', color: '#8b5cf6' },
@@ -169,6 +171,7 @@ class MiniGolf {
     this.phase = 'intro';
     this.renderGame();
     this.showIntro();
+    if (this.seats.some(isBot)) this.later(() => prepareHole(this.world), 600);
   }
 
   renderGame() {
@@ -292,6 +295,7 @@ class MiniGolf {
   }
 
   stopLoop() {
+    this.botJob?.cancel();
     cancelAnimationFrame(this.raf);
     this.raf = null;
     this.resizeObs?.disconnect();
@@ -359,6 +363,66 @@ class MiniGolf {
     this.setOverviewLabel();
     this.updateHud();
     this.ctx.haptic(8);
+    if (isBot(p)) this.botShot(p);
+  }
+
+  get botTurn() {
+    return isBot(this.seats[this.turn]);
+  }
+
+  // The bot lines up (planning on a copy of the hole), draws the putter back, and hits.
+  async botShot(player) {
+    const job = { cancelled: false };
+    this.botJob?.cancel();
+    this.botJob = { cancel: () => (job.cancelled = true) };
+    const seat = this.turn;
+    const banner = this.root.querySelector('.golf-banner');
+    banner.innerHTML = `<span class="golf-dot" style="--pc:${player.color}"></span>${thinking(player)}`;
+    // Plan for the moment the ball will actually be struck (windmills keep turning)
+    const lead = timed(this.world) ? 2.6 : 0;
+    const strikeAt = this.world.t + lead;
+    await new Promise((r) => setTimeout(r, 350));
+    if (job.cancelled) return;
+    const plan = await planShot(this.world, this.balls, seat, botLevel(player), { t: strikeAt, job });
+    if (!plan || job.cancelled || this.phase !== 'aim' || this.turn !== seat) return;
+    banner.innerHTML = `<span class="golf-dot" style="--pc:${player.color}"></span><b>${escapeHtml(player.name)}</b><span>${this.isPin ? 'One shot' : `Stroke ${this.strokes[seat] + 1}`}</span>`;
+
+    // Draw back: the aim line grows to the planned strength
+    const ball = this.balls[seat];
+    const meter = this.root.querySelector('.golf-power');
+    const pullDir = this.world.mirror ? 1 : -1;
+    const start = performance.now();
+    const DRAW = 750;
+    await new Promise((resolve) => {
+      const frame = () => {
+        if (job.cancelled || this.phase !== 'aim') return resolve();
+        const k = Math.min(1, (performance.now() - start) / DRAW);
+        const e = 1 - (1 - k) ** 3;
+        const power = Math.max(0.04, plan.aimPower * e);
+        const len = power * MAX_PULL;
+        this.aim = {
+          ball,
+          dir: plan.aimDir,
+          power,
+          pull: [plan.aimDir[0] * pullDir * len * 0.8, plan.aimDir[1] * pullDir * len * 0.8],
+          path: E.previewPath(this.world, ball, plan.aimDir[0], plan.aimDir[1], power, 14 + power * 30),
+        };
+        this.r3?.setAim(this.aim, player.color);
+        meter?.classList.add('on');
+        meter?.style.setProperty('--p', power);
+        meter?.style.setProperty('--h', 120 - power * 120);
+        // Hold at full draw until the planned moment
+        if (k >= 1 && this.world.t >= strikeAt - 0.02) return resolve();
+        if (k >= 1 && this.world.t > strikeAt + 1) return resolve();
+        requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);
+    });
+    meter?.classList.remove('on');
+    this.aim = null;
+    this.r3?.setAim(null);
+    if (job.cancelled || this.phase !== 'aim' || this.turn !== seat) return;
+    this.takeShot(plan.dir, plan.power);
   }
 
   setOverviewLabel() {
@@ -390,12 +454,12 @@ class MiniGolf {
     const meter = () => this.root.querySelector('.golf-power');
     const screen = (e) => [e.clientX, e.clientY];
     cv.addEventListener('pointerdown', (e) => {
-      if (this.phase !== 'aim') return;
+      if (this.phase !== 'aim' || this.botTurn) return;
       cv.setPointerCapture(e.pointerId);
       start = this.use3d ? screen(e) : toWorld(e);
     });
     cv.addEventListener('pointermove', (e) => {
-      if (!start || this.phase !== 'aim') return;
+      if (!start || this.phase !== 'aim' || this.botTurn) return;
       let dir;
       let power;
       let pull = [0, 0];
@@ -559,7 +623,9 @@ class MiniGolf {
 
   afterRest() {
     if (!this.shotInFlight) {
+      // Knocked by a windmill before the shot: back to aiming (a bot lines up again)
       this.phase = 'aim';
+      if (this.botTurn) this.botShot(this.seats[this.turn]);
       return;
     }
     this.shotInFlight = false;

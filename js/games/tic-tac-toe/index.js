@@ -1,6 +1,9 @@
 import { newRound, play, canPlay, legalMoves, nextToFade, topOf } from './engine.js';
 import { icon } from '../../icons.js';
 import { escapeHtml } from '../../ui.js';
+import { initial, isBot, personChip, thinking, botTurn, cancelBot } from '../kit.js';
+import { botLevel } from '../../bots.js';
+import { chooseMove } from './ai.js';
 
 const GUESTS = [
   { id: 'guest-1', name: 'Player 1', color: '#8b5cf6' },
@@ -57,7 +60,6 @@ const DEFAULTS = { mode: 'classic', size: 3, line: 3, theme: 'classic', bestOf: 
 
 const svg = (paths) =>
   `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
-const initial = (p) => escapeHtml(p.name.trim()[0]?.toUpperCase() ?? '?');
 
 class TicTacToe {
   constructor(stage, ctx) {
@@ -139,7 +141,7 @@ class TicTacToe {
           <span class="ttt-seat-mark mk-box">${this.mark(i)}</span>
           <span class="avatar" style="--pc:${p.color}">${initial(p)}</span>
           <strong>${escapeHtml(p.name)}</strong>
-          <small>${i === 0 ? 'Goes first' : 'Goes second'}</small>
+          <small>${i === 0 ? 'Goes first' : 'Goes second'}${isBot(p) ? ` · ${p.bot.label}` : ''}</small>
         </button>`;
     };
 
@@ -165,7 +167,7 @@ class TicTacToe {
               bench.length
                 ? `<p class="kit-hint">Tap a seat, then a player to swap them in.</p>
                    <div class="kit-people">${bench
-                     .map((p) => `<button class="kit-person" data-act="bench" data-v="${p.id}"><span class="avatar" style="--pc:${p.color}">${initial(p)}</span>${escapeHtml(p.name)}</button>`)
+                     .map((p) => personChip(p, { act: 'bench' }))
                      .join('')}</div>`
                 : ''
             }
@@ -473,6 +475,8 @@ class TicTacToe {
       if (!tray.includes(this.piece)) this.piece = Math.min(...tray);
       this.renderTray();
     }
+    const player = this.seats[s.turn];
+    if (isBot(player)) return this.botMove(player);
     if (!this.cfg.timer) return;
 
     const ms = this.cfg.timer * 1000;
@@ -484,6 +488,23 @@ class TicTacToe {
     }
     [3, 2, 1].forEach((t) => ms > t * 1000 && this.timers.push(setTimeout(() => this.ctx.sfx.tick(), ms - t * 1000)));
     this.timers.push(setTimeout(() => this.timeUp(), ms));
+  }
+
+  botMove(player) {
+    this.locked = true;
+    this.gameEl.classList.add('is-bot-turn');
+    const turn = this.root.querySelector('.ttt-turn');
+    if (turn) turn.innerHTML = `<span class="ttt-turn-mark mk-box">${this.mark(this.state.turn)}</span>${thinking(player)}`;
+    botTurn(
+      this,
+      () => chooseMove(this.state, botLevel(player)),
+      (m) => {
+        this.locked = false;
+        this.gameEl.classList.remove('is-bot-turn');
+        if (m.size) this.piece = m.size;
+        this.onCell(m.idx);
+      },
+    );
   }
 
   stopTimer() {
@@ -552,7 +573,10 @@ class TicTacToe {
 
   undo() {
     if (!this.history.length || this.state.result || this.locked) return;
-    this.state = this.history.pop();
+    cancelBot(this);
+    // Step back past the bots' moves to the last turn a person took
+    do this.state = this.history.pop();
+    while (this.history.length && isBot(this.seats[this.state.turn]));
     this.ctx.sfx.close();
     this.ctx.haptic();
     this.update();

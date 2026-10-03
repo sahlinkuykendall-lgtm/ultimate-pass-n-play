@@ -55,6 +55,23 @@ in Safari on the same Wi-Fi.
   Marathon (every line scores) and Blindfold modes, five board sizes, connect 3/4/5, animated drops,
   turn timer, undo and multi-round matches.
 
+### Computer players
+
+Every game can seat bots alongside real people, so one person can play alone or a group can fill an
+empty seat: **Pip** (Easy), **Bolt** (Medium) and **Nova** (Hard). They show up under "Computer players"
+on each game's setup screen and play every mode:
+
+- Tic-Tac-Toe and Connect Four: alpha-beta search over the real rules (`js/games/search.js`), with Connect
+  Four searching a compact board and judging power-ups with the real engine.
+- Dots & Boxes: takes boxes worth taking, draws safe lines, gives away as little as possible, and (Hard)
+  plays the endgame by simulation, which finds the double-cross.
+- Chess: negamax with quiescence and variant-aware evaluation, run in a Web Worker so the board keeps
+  animating. In Fog of War the bot only searches what it can see.
+- Mini Golf: simulates a fan of putts with the real physics, scores them by walking distance to the cup
+  and prefers shots that still work when slightly mishit. Lower levels have shakier hands.
+
+Undo steps back past the bots' moves to your last turn. Against a bot the chess board stays on your side.
+
 ## Updates
 
 The app checks for a new version every time it opens or comes back to the foreground and reloads
@@ -70,6 +87,7 @@ Bump `APP_VERSION` in `js/app.js` and `CACHE` in `sw.js` with each release.
      async mount(stage, ctx) {
        // stage: the element to render into
        // ctx.players: the saved roster [{ id, name, color }], pick who plays inside the game
+       //   (games marked `bots: true` in games.js also get the bots, which have a `bot: { level }` field)
        // ctx.storage.get() / .set(value): remember this game's settings between sessions
        // ctx.passTo(player): shows the handoff screen, resolves when they're ready
        // ctx.toast(msg), ctx.confirm({...}), ctx.confetti({ colors }), ctx.sfx.*, ctx.haptic(), ctx.exit()
@@ -97,7 +115,10 @@ js/games/chess/         rules engine (perft-tested), 3D board (board3d.js), piec
 js/games/connect-four/  rules engine, UI and styles for Connect Four
 js/games/mini-golf/     physics engine, course, 3D (three.js) + 2D renderers, UI and styles for Mini Golf
 js/vendor/three.js      tree-shaken three.js build (regenerate with scripts/build-three.mjs)
-js/games/kit.js         shared setup helpers: player picker, segmented rows, mode cards
+js/games/kit.js         shared setup helpers: player picker, segmented rows, mode cards, bot turns
+js/games/search.js      alpha-beta search used by the turn-based bots
+js/games/*/ai.js        each game's computer player
+js/bots.js              the bot roster (Pip, Bolt, Nova)
 js/ui.js                sheets, toasts, confirm, pass-the-phone handoff
 js/store.js             saved players + settings (localStorage)
 js/fx.js                synthesized UI sounds + haptics

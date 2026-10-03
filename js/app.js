@@ -3,8 +3,9 @@ import { store, MAX_PLAYERS } from './store.js';
 import { sfx, haptic, unlockAudio } from './fx.js';
 import { icon, logoMark } from './icons.js';
 import { openSheet, sheetIsOpen, toast, confirm, passTo, confetti, escapeHtml } from './ui.js';
+import { BOTS } from './bots.js';
 
-export const APP_VERSION = '0.9.0';
+export const APP_VERSION = '0.10.0';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -242,7 +243,8 @@ function openGameDetail(game) {
   const [min, max] = game.players;
   const have = store.players.length;
   const ready = isReady(game);
-  const needed = Math.max(0, min - have);
+  // Games with computer players only need one real person.
+  const needed = Math.max(0, (game.bots ? 1 : min) - have);
   const category = CATEGORIES.find((c) => c.id === game.categories[0])?.label ?? 'Game';
 
   let cta;
@@ -253,7 +255,9 @@ function openGameDetail(game) {
   const note =
     have && have > max
       ? `<p class="detail-note">You’ll pick ${max} of your ${have} players to play.</p>`
-      : '';
+      : game.bots && have && have < min
+        ? `<p class="detail-note">Short a player? A computer player takes the empty seat.</p>`
+        : '';
 
   const { el, close } = openSheet({
     className: 'sheet-detail',
@@ -549,7 +553,7 @@ async function launchGame(game) {
   sfx.start();
   const ctx = {
     game,
-    players: [...store.players],
+    players: game.bots ? [...store.players, ...BOTS] : [...store.players],
     storage: { get: () => store.gameData(game.id), set: (value) => store.setGameData(game.id, value) },
     passTo,
     toast,

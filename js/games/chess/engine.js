@@ -442,8 +442,8 @@ export function perft(s, depth) {
   for (const m of legalMoves(s)) n += depth === 1 ? 1 : perft(playRaw(s, m), depth - 1);
   return n;
 }
-// Fast play for perft: no SAN/outcome bookkeeping.
-function playRaw(prev, m) {
+// Fast play for perft and the bot: no SAN/outcome bookkeeping. `m` must come from legalMoves.
+export function playRaw(prev, m) {
   const s = { ...prev, board: apply(prev, m).board, castle: structuredClone(prev.castle), result: null };
   const piece = prev.board[m.from];
   for (const color of ['w', 'b']) {
@@ -457,5 +457,6 @@ function playRaw(prev, m) {
   }
   s.ep = m.double ? (m.from + m.to) / 2 : -1;
   s.turn = other(prev.turn);
+  if (s.mode === 'threecheck' && inCheck(s, s.turn)) s.checks = { ...prev.checks, [prev.turn]: prev.checks[prev.turn] + 1 };
   return s;
 }

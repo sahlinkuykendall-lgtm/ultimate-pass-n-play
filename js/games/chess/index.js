@@ -1,7 +1,9 @@
 import { newGame, play, legalMoves, inCheck, kingSq, visible, material, sqName, CENTER } from './engine.js';
 import { pieceSvg, PIECE_DEFS } from './pieces.js';
 import { icon } from '../../icons.js';
-import { playersSection, shuffle, loadStyles, segRow, modeGrid, initial, escapeHtml } from '../kit.js';
+import { playersSection, shuffle, loadStyles, segRow, modeGrid, initial, escapeHtml, isBot, thinking } from '../kit.js';
+import { botLevel } from '../../bots.js';
+import { chooseMove } from './ai.js';
 
 const GUESTS = [
   { id: 'guest-1', name: 'Player 1', color: '#e5e7eb' },
@@ -132,22 +134,99 @@ class Chess {
     this.over = null;
     this.hold = null;
     this.fogViewer = null;
+    this.busy = false;
+    this.thinking = false;
+    this.botToken = (this.botToken ?? 0) + 1;
     const clk = CLOCKS.find((x) => x[0] === this.cfg.clock);
     this.clock = clk[2] ? { w: clk[2] * 60000, b: clk[2] * 60000, inc: clk[3] * 1000 } : null;
     this.renderGame();
     this.ctx.sfx.select();
-    if (this.fog) this.handoff();
-    else this.startClock();
+    if (this.handoffs) this.handoff();
+    else this.startTurn();
+  }
+
+  startTurn() {
+    this.startClock();
+    const p = this.playerOf(this.state.turn);
+    if (isBot(p) && !this.over) this.botMove(p);
+  }
+
+  // The bot thinks in a worker (main thread if workers aren't available), then plays.
+  botMove(player) {
+    const token = (this.botToken = (this.botToken ?? 0) + 1);
+    const state = this.state;
+    const start = performance.now();
+    this.busy = true;
+    this.thinking = true;
+    this.drawHud();
+    this.askBot(state, botLevel(player)).then((move) => {
+      const wait = Math.max(0, 750 - (performance.now() - start));
+      this.pending.push(
+        setTimeout(() => {
+          if (token !== this.botToken || this.state !== state || this.over || this.view !== 'game') return;
+          this.busy = false;
+          this.thinking = false;
+          this.commit(move, false);
+        }, wait),
+      );
+    });
+  }
+
+  askBot(state, level) {
+    const local = () => new Promise((resolve) => setTimeout(() => resolve(chooseMove(state, level)), 30));
+    if (!this.worker && this.worker !== false) {
+      try {
+        this.worker = new Worker(new URL('./ai-worker.js', import.meta.url), { type: 'module' });
+        this.worker.onmessage = (e) => this.workerJobs.get(e.data.id)?.(e.data.move);
+        this.workerJobs = new Map();
+        this.jobId = 0;
+      } catch {
+        this.worker = false;
+      }
+    }
+    if (!this.worker) return local();
+    return new Promise((resolve) => {
+      const id = ++this.jobId;
+      // If the worker never answers (old Safari without module workers), think here instead
+      const fallback = setTimeout(() => {
+        this.workerJobs.delete(id);
+        this.worker?.terminate();
+        this.worker = false;
+        local().then(resolve);
+      }, 6000);
+      this.workerJobs.set(id, (move) => {
+        clearTimeout(fallback);
+        this.workerJobs.delete(id);
+        resolve(move);
+      });
+      this.worker.onerror = () => {
+        clearTimeout(fallback);
+        this.workerJobs.delete(id);
+        this.worker = false;
+        local().then(resolve);
+      };
+      this.worker.postMessage({ id, state, level });
+    });
   }
 
   get fog() {
     return this.cfg.mode === 'fog';
+  }
+  // Against a bot the board stays on the one person's side the whole game.
+  get solo() {
+    const people = [0, 1].filter((i) => !isBot(this.seats[i]));
+    return people.length === 1 ? (people[0] === 0 ? 'w' : 'b') : null;
+  }
+  // Fog of War hand-offs only make sense between two people.
+  get handoffs() {
+    return this.fog && !this.seats.some(isBot);
   }
   playerOf(color) {
     return this.seats[color === 'w' ? 0 : 1];
   }
   // Whose eyes the board is drawn for (bottom of the screen).
   get viewer() {
+    if (this.solo) return this.solo;
     if (this.fog) return this.fogViewer ?? 'w';
     if (this.hold) return this.hold;
     return this.cfg.view === 'flip' ? this.state.turn : 'w';
@@ -396,7 +475,9 @@ class Chess {
     else {
       const p = this.playerOf(s.turn);
       const check = inCheck(s, s.turn) ? ' · Check!' : '';
-      status.innerHTML = `<span class="ch-dot ${s.turn === 'b' ? 'is-black' : ''}"></span><b>${escapeHtml(p.name)}</b> to move${check} <span class="ch-hint">${HINTS[s.mode]}</span>`;
+      status.innerHTML = this.thinking
+        ? `<span class="ch-dot ${s.turn === 'b' ? 'is-black' : ''}"></span>${thinking(p)}${check}`
+        : `<span class="ch-dot ${s.turn === 'b' ? 'is-black' : ''}"></span><b>${escapeHtml(p.name)}</b> to move${check} <span class="ch-hint">${HINTS[s.mode]}</span>`;
     }
     this.gameEl.classList.toggle('is-over', !!this.over);
     this.root.querySelector('[data-act="undo"]').disabled = !this.history.length || !!this.over;
@@ -530,7 +611,7 @@ class Chess {
       dropped = false; // let everything else (captures, castling rook) animate
     }
     this.moveFx(next.events, dropped);
-    if (this.fog && !next.result) {
+    if (this.handoffs && !next.result) {
       // Show the mover their own move for a beat, then hide the board and hand over
       this.draw(!dropped);
       this.stopClock();
@@ -552,7 +633,7 @@ class Chess {
       );
     } else this.draw(!dropped);
     if (next.result) this.finish(next.result);
-    else this.startClock();
+    else this.startTurn();
   }
 
   moveFx(ev, dropped) {
@@ -599,7 +680,7 @@ class Chess {
     this.gameEl.classList.remove('is-hidden');
     this.busy = false;
     this.draw(false);
-    this.startClock();
+    this.startTurn();
   }
 
   /* ---------------------------------------------------------------- Clock */
@@ -727,22 +808,32 @@ class Chess {
 
       case 'undo': {
         if (this.busy || !this.history.length || this.over) return;
-        // Fog of War: undo both plies so the board goes back to your own turn
-        const steps = this.fog && this.history.length >= 2 ? 2 : 1;
+        // Fog of War: undo both plies so the board goes back to your own turn.
+        // Against a bot, step back past its moves to the last one a person made.
+        const steps = this.handoffs && this.history.length >= 2 ? 2 : 1;
         let h;
         for (let i = 0; i < steps; i++) h = this.history.pop();
+        while (this.history.length && isBot(this.playerOf(h.state.turn))) h = this.history.pop();
+        this.botToken = (this.botToken ?? 0) + 1;
         this.state = h.state;
         this.sans = h.sans;
         this.selected = -1;
         this.ctx.sfx.close();
         this.draw(true);
-        this.startClock();
+        this.startTurn();
         return;
       }
       case 'draw': {
         if (this.busy || this.over) return;
         const from = this.playerOf(this.state.turn);
         const to = this.playerOf(this.state.turn === 'w' ? 'b' : 'w');
+        if (isBot(to)) {
+          // Bots take a draw only when they're behind
+          const behind = material(this.state) * (this.state.turn === 'w' ? 1 : -1) >= 2;
+          if (behind) return this.finish({ winner: null, reason: 'agreed' });
+          this.ctx.sfx.deny();
+          return this.ctx.toast(`${to.name} declines. Play on!`, { icon: 'swap', duration: 1800 });
+        }
         return this.confirmThen(
           { title: `${to.name}, accept a draw?`, message: `${from.name} is offering a draw.`, confirmLabel: 'Accept draw' },
           () => this.finish({ winner: null, reason: 'agreed' }),
@@ -785,6 +876,8 @@ class Chess {
   destroy() {
     this.stopClock();
     this.clearPending();
+    this.botToken = (this.botToken ?? 0) + 1;
+    if (this.worker) this.worker.terminate();
     this.disposeBoard();
   }
 }

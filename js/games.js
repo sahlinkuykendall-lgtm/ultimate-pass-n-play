@@ -33,6 +33,7 @@ export const GAMES = [
     colors: ['#22c55e', '#0ea5e9'],
     icon: 'flag',
     featured: true,
+    bots: true,
     load: () => import('./games/mini-golf/index.js'),
   },
   {
@@ -46,6 +47,7 @@ export const GAMES = [
     colors: ['#3b82f6', '#06b6d4'],
     icon: 'grid',
     featured: true,
+    bots: true,
     load: () => import('./games/tic-tac-toe/index.js'),
   },
   {
@@ -59,6 +61,7 @@ export const GAMES = [
     colors: ['#e879f9', '#f43f5e'],
     icon: 'boxes',
     featured: true,
+    bots: true,
     load: () => import('./games/dots-and-boxes/index.js'),
   },
   {
@@ -72,6 +75,7 @@ export const GAMES = [
     colors: ['#f43f5e', '#f59e0b'],
     icon: 'connect',
     featured: true,
+    bots: true,
     load: () => import('./games/connect-four/index.js'),
   },
   {
@@ -85,6 +89,7 @@ export const GAMES = [
     colors: ['#a78bfa', '#4c1d95'],
     icon: 'chess',
     featured: true,
+    bots: true,
     load: () => import('./games/chess/index.js'),
   },
   {
