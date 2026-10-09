@@ -39,6 +39,7 @@ const PATHS = {
   bomb: '<circle cx="11" cy="14" r="7"/><path d="M16 9l2.5-2.5M19.5 2.5v2M21.5 4.5h-2M18 4l1 1"/>',
   link: '<path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"/>',
   anchor: '<path d="M12 22V8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/><circle cx="12" cy="5" r="3"/>',
+  hangman: '<path d="M4 21h9M7 21V3h10v3"/><circle cx="17" cy="9" r="3"/><path d="M17 12v5M14.5 14.5h5M17 17l-2 3M17 17l2 3"/>',
   crown: '<path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z"/>',
 };
 

@@ -54,6 +54,11 @@ in Safari on the same Wi-Fi.
 - **Connect Four**: 2 to 4 players. Classic, Pop Out, Power Ups (Anvil, Bomb, Double), Gravity Flip,
   Marathon (every line scores) and Blindfold modes, five board sizes, connect 3/4/5, animated drops,
   turn timer, undo and multi-round matches.
+- **Hangman**: 1 to 6 players. Race (one word, hit a letter to go again, solve for a bonus), Word Master
+  (take turns typing a secret word in private), Team Streak (co-op, how many in a row), Evil (the computer
+  never commits to a word and dodges every guess), Duel (set a word for each other, first to crack theirs)
+  and Blitz (a shot clock on every guess). Twelve categories including phrases, 6/8/10 lives, an animated
+  gallows and an on-screen or hardware keyboard.
 
 ### Computer players
 
@@ -67,6 +72,8 @@ on each game's setup screen and play every mode:
   plays the endgame by simulation, which finds the double-cross.
 - Chess: negamax with quiescence and variant-aware evaluation, run in a Web Worker so the board keeps
   animating. In Fog of War the bot only searches what it can see.
+- Hangman: narrows the word bank to what fits the board and guesses the most common letter there;
+  easier bots lean on plain letter frequency. Bots can also set words in Word Master and Duel.
 - Mini Golf: simulates a fan of putts with the real physics, scores them by walking distance to the cup
   and prefers shots that still work when slightly mishit. Lower levels have shakier hands.
 
@@ -113,6 +120,7 @@ js/games/tic-tac-toe/   rules engine, UI and styles for Tic-Tac-Toe
 js/games/dots-and-boxes/ rules engine, UI and styles for Dots & Boxes
 js/games/chess/         rules engine (perft-tested), 3D board (board3d.js), piece art, UI and styles for Chess
 js/games/connect-four/  rules engine, UI and styles for Connect Four
+js/games/hangman/       rules (incl. Evil), word bank, bot, UI and styles for Hangman
 js/games/mini-golf/     physics engine, course, 3D (three.js) + 2D renderers, UI and styles for Mini Golf
 js/vendor/three.js      tree-shaken three.js build (regenerate with scripts/build-three.mjs)
 js/games/kit.js         shared setup helpers: player picker, segmented rows, mode cards, bot turns

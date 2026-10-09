@@ -1,7 +1,7 @@
 // Offline support. Network first so new versions show up right away,
 // falling back to the cache when there's no connection.
 // Bump CACHE when the SHELL list changes.
-const CACHE = 'pnp-v14';
+const CACHE = 'pnp-v15';
 const SHELL = [
   './',
   './index.html',
@@ -36,6 +36,11 @@ const SHELL = [
   './js/games/chess/pieces.js',
   './js/games/chess/board3d.js',
   './js/games/chess/style.css',
+  './js/games/hangman/index.js',
+  './js/games/hangman/engine.js',
+  './js/games/hangman/ai.js',
+  './js/games/hangman/words.js',
+  './js/games/hangman/style.css',
   './js/games/mini-golf/index.js',
   './js/games/mini-golf/engine.js',
   './js/games/mini-golf/ai.js',
